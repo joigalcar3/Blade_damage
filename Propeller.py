@@ -49,6 +49,7 @@ class Propeller:
         self.propeller_mass = None
 
         self.propeller_velocity = None
+        self.omega = None
         self.rotation_angle = 0
 
     def create_blades(self):
@@ -174,10 +175,10 @@ class Propeller:
         """
         self.propeller_velocity = np.cross(pqr.T, self.d[[self.propeller_number], :]).T + body_velocity
         u, v, w = self.propeller_velocity[:].flatten()
-        R = sum(self.hs) + self.radius_hub
+        R = sum(self.hs) + self.radius_hub  # radius of the propeller
 
-        va = np.sqrt(u ** 2 + v ** 2 + w ** 2)
-        vv = 0 if (omega * R) == 0 else min(va / (omega * R), 0.6)
+        va = np.sqrt(u ** 2 + v ** 2 + w ** 2)  # airspeed
+        vv = 0 if (omega * R) == 0 else min(va / (omega * R), 0.6)  # ratio of the airspeed and the tangential velocity
         alpha = 0 if np.sqrt(u ** 2 + v ** 2) == 0 else np.arctan(w / np.sqrt(u ** 2 + v ** 2)) * (180 / np.pi)
 
         P52_comp = compute_P52(alpha, vv).flatten()
@@ -213,8 +214,8 @@ class Propeller:
         return T, N
 
     def update_rotation_angle(self, omega, delta_t):
-        self.propeller_velocity = omega
-        self.rotation_angle += self.propeller_velocity * delta_t * self.SN[self.propeller_number]
+        self.omega = omega
+        self.rotation_angle += self.omega * delta_t * self.SN[self.propeller_number]
         if self.rotation_angle < 0:
             self.rotation_angle += 2 * np.pi
         self.rotation_angle %= 2 * np.pi
