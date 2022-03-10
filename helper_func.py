@@ -2,6 +2,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from math import radians
 from math import degrees
+from time import time
 
 figure_number = 1
 
@@ -228,6 +229,53 @@ def rpm_rads(rpm):
     return rads
 
 
+def iteration_printer(i, current_time):
+    """
+    Prints the current iteration and the time that has passed between iterations
+    :param current_time: last stored time
+    :param i: current iteration number
+    :return: the time when the last iteration was printed
+    """
+    if i % 5 == 0:
+        new_time = time()
+        elapsed_time = new_time - current_time
+        current_time = new_time
+        print(f'Iteration {i}. Elapsed time: {elapsed_time}')
+    return current_time
+
+
+def compute_LS(LS_method, W_matrix, A, b):
+    """
+    Compute the Least Squares method according to the method proposed in LS_method
+    :param LS_method: method used for the computation of Least Squares, it can be Weighted Least Squares (WLS),
+    Generalized Least Squares (GLS) or Ordinary Least Squares (OLS)
+    :param W_matrix: the weight matrix for WLS
+    :param A: the A matrix
+    :param b: the b matrix
+    :return:
+    """
+    # Check what Least Squares method is used and apply the computation of the unknowns
+    if LS_method == "WLS":  # Weighted Least Squares
+        if not W_matrix:
+            W_straight = np.zeros(A.shape[0])
+            W_straight[1::2] = 3600
+            W_straight[0::2] = 1
+            W_matrix = np.diag(W_straight)
+        ATW = np.matmul(A.T, W_matrix)
+        x = np.matmul(np.matmul(np.linalg.inv(np.matmul(ATW, A)), ATW), b)
+    elif LS_method == "GLS":  # Generalized Least Squares
+        x = np.matmul(np.matmul(np.linalg.inv(np.matmul(A.T, A)), A.T), b)
+        error = b - np.matmul(A, x)
+        sigma = np.matmul(error, error.T)
+        ATS = np.matmul(A.T, np.linalg.inv(sigma))
+        x = np.matmul(np.matmul(np.linalg.inv(np.matmul(ATS, A)), ATS), b)
+    elif LS_method == "OLS":  # Ordinary Least Squares
+        x = np.matmul(np.matmul(np.linalg.inv(np.matmul(A.T, A)), A.T), b)
+
+    return x
+
+
+# Plotters
 def plot_chord_twist(chord, twist):
     global figure_number
 
@@ -251,24 +299,49 @@ def plot_chord_twist(chord, twist):
 
 
 def plot_cla(x, A, b, aoa_storage, start_alpha, finish_alpha, degree_cla, degree_cda):
+    """
+    Function that plots the cl-alpha and cd-alpha curves. It also plots the average angle of attack seen by each blade
+    element in the form of a box plot
+    :param x: vector of unknown states
+    :param A: regression matrix
+    :param b: observation vector
+    :param aoa_storage:
+    :param start_alpha: first angle of attack to plot
+    :param finish_alpha: last angle of attack to plot
+    :param degree_cla: degree of the cl-alpha polynomial
+    :param degree_cda: degree of the cd-alpha polynomial
+    :return:
+    """
     global figure_number
 
     def cla_equation(alpha):
+        """
+        Creates the data points for the cl-alpha curve given an angle of attach and the cl-alpha coefficients
+        :param alpha: angle of attack
+        :return:
+        """
         cl = 0
         for i in range(degree_cla+1):
             cl += alpha ** i * x[i]
         return cl
 
     def cda_equation(alpha):
+        """
+        Creates the data points for the cd-alpha curve given an angle of attach and the cd-alpha coefficients
+        :param alpha: angle of attack
+        :return:
+        """
         cd = 0
         for i in range(degree_cla+1, degree_cla + degree_cda + 2):
             cd += alpha ** i * x[i]
         return cd
 
+    # Creation of the range of alphas to plot and the cl-cd coefficients
     alphas = np.arange(start_alpha, finish_alpha, 0.1)
     cls = [cla_equation(radians(aoa)) for aoa in alphas]
     cds = [cda_equation(radians(aoa)) for aoa in alphas]
 
+    # Plot the cl-alpha curve
     plt.figure(figure_number)
     figure_number += 1
     plt.plot(alphas, cls, 'r-')
@@ -277,6 +350,7 @@ def plot_cla(x, A, b, aoa_storage, start_alpha, finish_alpha, degree_cla, degree
     plt.title("Cl-alpha curve")
     plt.grid(True)
 
+    # Plot the cd-alpha curve
     plt.figure(figure_number)
     figure_number += 1
     plt.plot(alphas, cds, 'r-')
@@ -285,6 +359,7 @@ def plot_cla(x, A, b, aoa_storage, start_alpha, finish_alpha, degree_cla, degree
     plt.title("Cd-alpha curve")
     plt.grid(True)
 
+    # Compare the results predicted by multiplying A and x, with respect to the observations in b for the thrust
     b_approx = np.matmul(A, x)
     number_p = A.shape[0]
     data_points = range(int(number_p/2))
@@ -293,10 +368,11 @@ def plot_cla(x, A, b, aoa_storage, start_alpha, finish_alpha, degree_cla, degree
     plt.plot(data_points, b[::2], 'ro')
     plt.plot(data_points, b_approx[::2], 'bo')
     plt.xlabel("Data point [-]")
-    plt.ylabel("Lift value")
-    plt.title("Lift: Ax vs b")
+    plt.ylabel("Thrust value")
+    plt.title("Thrust: Ax vs b")
     plt.grid(True)
 
+    # Compare the results predicted by multiplying A and x, with respect to the observations in b for the torque
     plt.figure(figure_number)
     figure_number += 1
     plt.plot(data_points, b[1::2, 0], 'ro')
@@ -315,7 +391,7 @@ def plot_cla(x, A, b, aoa_storage, start_alpha, finish_alpha, degree_cla, degree
     print(f"Mean error torque: {average_error_Q} [Nm].")
     print(f"Maximum error percentage: {max(percentage_error)}%")
 
-    # Computation of error for thrust
+    # Plot of error for thrust
     plt.figure(figure_number)
     figure_number += 1
     plt.plot(data_points, error[::2], 'g-')
@@ -325,7 +401,7 @@ def plot_cla(x, A, b, aoa_storage, start_alpha, finish_alpha, degree_cla, degree
     plt.title("Approximation error thrust")
     plt.grid(True)
 
-    # Computation of error for torque
+    # Plot of error for torque
     plt.figure(figure_number)
     figure_number += 1
     plt.plot(data_points, error[1::2], 'g-')
@@ -336,22 +412,28 @@ def plot_cla(x, A, b, aoa_storage, start_alpha, finish_alpha, degree_cla, degree
     plt.grid(True)
     plt.show()
 
+    # Plot of the angles of attack seen by each of the selected blade sections. It is represented as a box plot such
+    # that it can be seen the average angle of attack as well as the range of alphas seen by its section.
     n_blade_sections = len(aoa_storage.keys())
     n_aoa = len(aoa_storage[0])
     flag = True
     while flag:
         user_input = input(f'Out of {n_blade_sections} blade sections, which ones would you like to plot? '
                            f'Please give the start and end sections separated by a comma.')
+
+        # If the user uses the letter s, it means that it wants to stop without plotting.
         if user_input == "s":
             flag = False
             continue
 
+        # Check that feasible blade sections have been given
         user_input = list(map(int, user_input.split(',')))
         start_section, end_section = user_input
         if start_section < 0 or end_section >= n_blade_sections:
             print("Those blade section indices can not be applied")
             continue
 
+        # Carry out the counting of the angle of attack seen by the blade sections
         n_sections = end_section - start_section + 1
         aoa_vectors = np.zeros((n_aoa, n_sections))
         for i in range(start_section, end_section + 1):
@@ -406,10 +488,12 @@ def plot_FM(t, rotation_angle, F, M):
         f_m.tight_layout()
     plt.show()
 
+
 def plot_coeffs_params_blade_contribution(LS_terms, b):
     """
     Function that plots the contribution of each blade to the parameters used to identify the lift and drag coefficients
     :param LS_terms: values used for the Least Squares for each of the blades
+    :param b: the b matrix with the thrust and torque information
     :return:
     """
     n_blades = len(LS_terms)

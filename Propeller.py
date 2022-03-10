@@ -1,12 +1,13 @@
 from Blade import Blade
-from math import cos, sin, radians, degrees, isclose
-import numpy as np
-from helper_func import compute_P52, compute_beta, compute_Fn, compute_psi, plot_cla, plot_coeffs_params_blade_contribution
-from aero_data import *
+from math import cos, sin, radians, degrees, isclose, pi
 import random
 from time import time
 from collections import defaultdict
+from scipy.optimize import minimize
 
+from helper_func import compute_P52, compute_beta, compute_Fn, compute_psi, plot_cla, \
+    plot_coeffs_params_blade_contribution, iteration_printer, compute_LS
+from aero_data import *
 
 # Class of propeller that contains blade objects
 class Propeller:
@@ -247,6 +248,72 @@ class Propeller:
                            LS_method="OLS", W_matrix=0, start_plot=-30, finish_plot=30):
         """
         Function that computes the cl-alpha coefficients using Least Squares
+        :param number_samples: the number of samples that will be taken in order to obtain the cla curve
+        :param number_sections: number of sections to split the blade
+        :param degree_cla: the polynomial degree of the Cl-alpha curve
+        :param degree_cda: the degree of the polynomial that we want to use to approximate the Cd-a curve
+        :param min_w: the minimum vertical velocity
+        :param max_w: the maximum vertical velocity
+        :param va: the airspeed velocity
+        :param rho: the air density
+        :param activate_plotting: whether the cl-alpha curve is plotted at the end
+        :param activate_params_blade_contribution_plotting: switch for the activation of the plots that show the
+         contribution of each blade to the parameters used to identify the lift and drag coefficients
+        :param LS_method: Least Squares method used: OLS, WLS, GLS
+        :param W_matrix: the matrix used for WLS
+        :param start_plot: first angle of attack to plot
+        :param finish_plot: last angle of attack to plot
+        :return: the identified unknown parameters, as well as the A (regression matrix) and b (observations vector)
+        matrices
+        """
+        A = np.zeros((number_samples * 2, degree_cla + degree_cda + 2))
+        b = np.zeros((number_samples * 2, 1))
+        aoa_storage = defaultdict(list)
+        current_time = time()
+        for i in range(number_samples):
+            # Print the time that has passed since the last iteration
+            iteration_printer(i, current_time)
+
+            # Compute the current scenario conditions
+            body_velocity, pqr, omega = self.generate_ls_dp_input(min_w, max_w, va)
+
+            # Compute the term corresponding to the b component of LS
+            T, N = self.compute_lift_torque_matlab(body_velocity, pqr, omega, rho)
+            b[2 * i, 0] = T
+            b[2 * i + 1, 0] = N
+
+            # Compute the uniform induced inflow and induced velocity
+            inflow_data = self.compute_uniform_induced_inflow(T, rho, omega)
+
+            # Compute the terms corresponding to the A matrix of LS
+            LS_terms_blades = []
+            for blade in self.blades:
+                LS_terms, aoa_storage = blade.compute_LS_params(number_sections, degree_cla, degree_cda, omega,
+                                                                self.rotation_angle, self.propeller_velocity,
+                                                                aoa_storage, inflow_data)
+                if np.sum(A[2 * i:2 * i + 2, :]) and blade == self.blades[0]:
+                    raise Exception("The values should be empty for the coming information")
+                A[2 * i:2 * i + 2, :] += LS_terms
+                LS_terms_blades.append(LS_terms)
+            if activate_params_blade_contribution_plotting:
+                plot_coeffs_params_blade_contribution(LS_terms_blades, [T, N])
+
+        # Carry out the Least Squares
+        x = compute_LS(LS_method, W_matrix, A, b)
+
+        if activate_plotting:
+            plot_cla(x, A, b, aoa_storage, start_plot, finish_plot, degree_cla, degree_cda)
+        return x, A, b
+
+    def compute_cla_coeffs_avg_rot(self, number_samples, number_sections, degree_cla, degree_cda, min_w=-1, max_w=1, va=2,
+                           rho=1.225, activate_plotting=True, activate_params_blade_contribution_plotting=False,
+                           LS_method="OLS", W_matrix=0, start_plot=-30, finish_plot=30, n_rot_steps=10):
+        """
+        Function that computes the cl-alpha coefficients using Least Squares. In contrast with the compute_cla_coeffs
+        method, here the average of a complete rotation is taken for the coefficients, instead of just one instantaneous
+        propeller rotated position. As seen by many papers, we are taking the integral from 0 to 2pi with respect to
+        dpsi. However, here it is done numerically by computing the coefficients at some blade rotated positions and
+        later dividing the coefficients by the number of rotated positions.
         :param LS_method: Least Squares method used: OLS, WLS, GLS
         :param W_matrix: the matrix used for WLS
         :param finish_plot: last angle of attack to plot
@@ -260,18 +327,17 @@ class Propeller:
         :param degree_cla: the polynomial degree of the Cl-alpha curve
         :param degree_cda: the degree of the polynomial that we want to use to approximate the Cd-a curve
         :param activate_plotting: whether the cl-alpha curve is plotted at the end
+        :param n_rot_steps: number of propeller positions used when taking the average/integral
         :return:
         """
         A = np.zeros((number_samples * 2, degree_cla + degree_cda + 2))
         b = np.zeros((number_samples * 2, 1))
+        rot_angles = np.linspace(0, 2*pi, n_rot_steps)
         aoa_storage = defaultdict(list)
         current_time = time()
         for i in range(number_samples):
-            if i % 5 == 0:
-                new_time = time()
-                elapsed_time = new_time - current_time
-                current_time = new_time
-                print(f'Iteration {i}. Elapsed time: {elapsed_time}')
+            # Print the time that has passed with respect to the last iteration
+            iteration_printer(i, current_time)
 
             # Compute the current scenario conditions
             body_velocity, pqr, omega = self.generate_ls_dp_input(min_w, max_w, va)
@@ -281,44 +347,73 @@ class Propeller:
             b[2 * i, 0] = T
             b[2 * i + 1, 0] = N
 
+            # Compute the uniform induced inflow and induced velocity
+            inflow_data = self.compute_uniform_induced_inflow(T, rho, omega)
+
             # Compute the terms corresponding to the A matrix of LS
             LS_terms_blades = []
-            for blade in self.blades:
-                LS_terms, aoa_storage = blade.compute_LS_params(number_sections, degree_cla, degree_cda, omega,
-                                                                self.rotation_angle, self.propeller_velocity,
-                                                                aoa_storage)
-                if np.sum(A[2 * i:2 * i + 2, :]) and blade == self.blades[0]:
-                    raise Exception("The values should be empty for the coming information")
-                A[2 * i:2 * i + 2, :] += LS_terms
-                LS_terms_blades.append(LS_terms)
+            for rot_angle in rot_angles:
+                for blade in self.blades:
+                    LS_terms, aoa_storage = blade.compute_LS_params(number_sections, degree_cla, degree_cda, omega,
+                                                                    rot_angle, self.propeller_velocity,
+                                                                    aoa_storage)
+                    A[2 * i:2 * i + 2, :] += LS_terms
+                    LS_terms_blades.append(LS_terms)
+            A[2 * i:2 * i + 2, :] /= n_rot_steps
             if activate_params_blade_contribution_plotting:
                 plot_coeffs_params_blade_contribution(LS_terms_blades, [T, N])
 
-        # Check what Least Squares method is used    and apply the computation of the unknowns
-        if LS_method == "WLS":  # Weighted Least Squares
-            if not W_matrix:
-                W_straight = np.zeros(A.shape[0])
-                W_straight[1::2] = 3600
-                W_straight[0::2] = 1
-                W_matrix = np.diag(W_straight)
-            ATW = np.matmul(A.T, W_matrix)
-            x = np.matmul(np.matmul(np.linalg.inv(np.matmul(ATW, A)), ATW), b)
-        elif LS_method == "GLS":   # Generalized Least Squares
-            x = np.matmul(np.matmul(np.linalg.inv(np.matmul(A.T, A)), A.T), b)
-            error = b-np.matmul(A, x)
-            sigma = np.matmul(error, error.T)
-            ATS = np.matmul(A.T, np.linalg.inv(sigma))
-            x = np.matmul(np.matmul(np.linalg.inv(np.matmul(ATS, A)), ATS), b)
-        elif LS_method == "OLS":   # Ordinary Least Squares
-            x = np.matmul(np.matmul(np.linalg.inv(np.matmul(A.T, A)), A.T), b)
+        # Carry out the Least Squares
+        x = compute_LS(LS_method, W_matrix, A, b)
 
+        # Plot the resulting cla and cda curves
         if activate_plotting:
             plot_cla(x, A, b, aoa_storage, start_plot, finish_plot, degree_cla, degree_cda)
         return x, A, b
 
+    def compute_uniform_induced_inflow(self, T, rho, omega):
+        """
+        Method that computes the uniform induced inflow (\lambda_0) that will be used later for the computation of the linear
+        induced inflow velocity (\lambda_i)
+        :param T: thrust of the propeller, as computed by Matlab
+        :param rho: air density
+        :param omega: rotational velocity of the propeller
+        :return: the uniform induced inflow \lambda_0 and induced velocity v0
+        """
+        R = sum(self.hs) + self.radius_hub  # radius of the propeller
+        A = pi * R * R                      # area of the propeller
+        V_inf = np.linalg.norm(self.propeller_velocity)   # the velocity seen by the propeller
+        V_xy = np.sqrt(self.propeller_velocity[0]**2 + self.propeller_velocity[1]**2)  # the velocity projected in the xy plane
+        tpp_V_angle = np.arccos(V_xy/V_inf)   # the angle shaped by the tip path plane and the velocity
+
+        # Function to minimize, initial condition and bounds
+        min_func = lambda x: abs(T - 2 * rho * A * x[0] * np.sqrt((V_inf * np.cos(tpp_V_angle))**2 +
+                                                              (V_inf * np.sin(tpp_V_angle) + x[0])**2))
+        x0 = np.array([1])
+        bnds = ((0, 20),)
+
+        # Uniform induced velocity and inflow
+        v0 = minimize(min_func, x0, method='Nelder-Mead', tol=1e-6, options={'disp': True}, bounds=bnds).x[0]
+        lambda_0 = v0/(omega*R)
+
+        # Compute wake skew angle
+        mu_x = V_inf * np.cos(tpp_V_angle)/(omega*R)
+        mu_z = V_inf * np.sin(tpp_V_angle)/(omega*R)
+        Chi = np.arctan(mu_x/(mu_z+lambda_0))
+
+        # Compute kx and ky weighting factors
+        kx = 4/3 * ((1 - np.cos(Chi) - 1.8 * mu_x**2)/np.sin(Chi))
+        ky = -2 * mu_x
+        linear_inflow_func = lambda r, psi: lambda_0 * (1 + kx * r * np.cos(psi) + ky * r * np.sin(psi))
+
+        inflow_data = {"lambda_0": lambda_0, "v0": v0, "linear_inflow_func": linear_inflow_func}
+
+        return inflow_data
+
     def compute_thrust_moment(self, number_sections, omega, propeller_speed, cla_coeffs, cda_coeffs):
         """
-        Method to compute the thrust generated by the remaining and damaged (flown away) blade sections
+        Method to compute the thrust and the corresponding moment around the propeller hub caused by this forced. This
+        is done for the remaining and damaged (flown away) blade sections.
         :param number_sections: total number of sections in which a healthy blade is split up
         :param omega: the rotation rate of the propeller
         :param propeller_speed: the 3D at which the propeller is moving due to the translation and rotation of the body
@@ -347,7 +442,8 @@ class Propeller:
 
     def compute_torque_force(self, number_sections, omega, propeller_speed, cla_coeffs, cda_coeffs):
         """
-        Method to compute the thrust generated by the remaining and damaged (flown away) blade sections
+        Method to compute the torque generated by the blade, as well as the corresponding force in the x-y plane. This
+        is done for the complete propeller and the damaged (flown away) sections.
         :param number_sections: total number of sections in which a healthy blade is split up
         :param omega: the rotation rate of the propeller
         :param propeller_speed: the 3D at which the propeller is moving due to the translation and rotation of the body

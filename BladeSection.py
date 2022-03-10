@@ -26,7 +26,7 @@ class BladeSection:
     def compute_thrust_moment(self, omega, rotor_speed, position_rotor, cla_coeffs, cda_coeffs):
         """
         Method that computes the thrust produced by the blade section and its corresponding moment about the center of
-        the propeller
+        the propeller caused by the thrust force
         :param omega: the speed at which the propeller is rotating [rad/s]
         :param rotor_speed: speed at which the drone is flying
         :param position_rotor: position of the propeller coordinate frame relative to the body frame. This information
@@ -63,7 +63,7 @@ class BladeSection:
 
     def compute_torque_force(self, omega, rotor_speed, position_rotor, cla_coeffs, cda_coeffs):
         """
-        Method that computes the torque produced by the blade section
+        Method that computes the torque produced by the blade section drag and the corresponding force in the x-y plane
         :param omega: the speed at which the propeller is rotating [rad/s]
         :param rotor_speed: speed at which the drone is flying
         :param position_rotor: position of the propeller coordinate frame relative to the body frame. This information
@@ -131,7 +131,10 @@ class BladeSection:
         """
         Compute the velocity along the chord of the blade section
         :param omega: rotational velocity of the rotor
-        :param position_rotor: current rotation of the propeller relative to the body coordinate frame
+        :param position_rotor: current rotation of the propeller relative to the body coordinate frame. When the rotor
+        position is at an angle of 90 degrees, then the body and the rotor coordinate frames coincide. When the rotor
+        angle is 0 degrees, then the x-axis of the propeller is pointing towards the negative body y-axis and the y-axis
+        of the propeller is pointing towards the positive body x-axis.
         :param rotor_speed: velocity experienced by the complete motor due to the translation and rotation of the body
         :return:
         """
