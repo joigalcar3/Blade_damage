@@ -21,7 +21,7 @@ coefficients_identification = True
 activate_params_blade_contribution_plotting = False
 LS_method = "OLS"       # the type of least squares used for the identification of the drag and lift coefficients
 n_rot_steps = 10        # The number of propeller positions used for taking the average
-activate_avg_rot = False
+activate_avg_rot = True
 
 # Propeller info
 propeller_mass = 5.17/1000  # [kg] measured 5.17

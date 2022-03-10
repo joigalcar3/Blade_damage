@@ -100,16 +100,17 @@ class BladeSection:
 
         return dQ, dF
 
-    def compute_aoa(self, rotor_speed, Vx):
+    def compute_aoa(self, rotor_speed, Vx, vi):
         """
         Compute the angle of attack
         :param rotor_speed: velocity experienced by the complete motor due to the translation and rotation of the body
         :param Vx: x-component of the velocity experienced by the blade in the blade coordinate frame. This
         means that it is the velocity component perpendicular to the blade
+        :param vi: induced velocity
         :return:
         """
         # Computation of the angle of attack
-        Vz_bl = -rotor_speed[2, 0]
+        Vz_bl = -rotor_speed[2, 0] + vi
         velocity_angle = np.arctan(Vz_bl/abs(Vx))
 
         # Situation when the velocity vector is coming from the back of the blade
@@ -127,7 +128,7 @@ class BladeSection:
                   f'has stalled.')
         return aoa
 
-    def compute_velocity(self, omega, position_rotor, rotor_speed):
+    def compute_velocity(self, omega, position_rotor, rotor_speed, vi):
         """
         Compute the velocity along the chord of the blade section
         :param omega: rotational velocity of the rotor
@@ -136,6 +137,7 @@ class BladeSection:
         angle is 0 degrees, then the x-axis of the propeller is pointing towards the negative body y-axis and the y-axis
         of the propeller is pointing towards the positive body x-axis.
         :param rotor_speed: velocity experienced by the complete motor due to the translation and rotation of the body
+        :param vi: induced velocity
         :return:
         """
         Vr = self.rotation_direction * omega * self.y   # Velocity at the blade section due to the rotor rotation
@@ -155,22 +157,30 @@ class BladeSection:
 
         # The total velocity experienced by the blade cross section is the sum of the velocity components in the x
         # and y directions
-        V_z = rotor_speed[2]
+        V_z = rotor_speed[2] + vi
         V_total = np.sqrt(Vl**2+V_z**2)
 
         return Vl, V_total
 
-    def compute_LS_term_params(self, omega, position_rotor, rotor_speed):
+    def compute_LS_term_params(self, omega, position_rotor, rotor_speed, inflow_data):
         """
         Method that computes the velocity and the angle of attack required for the computation of Least Squares
         :param omega: rotational velocity of the rotor
         :param position_rotor: current rotation of the propeller relative to the body coordinate frame
         :param rotor_speed: velocity experienced by the complete motor due to the translation and rotation of the body
+        :param inflow_data: data regarding the inflow field, namely the uniform induced inflow field, induced inflow
+        velocity and a lambda function that computes the linear induced field depending on the blade element distance
+        from the hub and angle with respect to the inflow. ["v0", "lambda_0", "induced_velocity_func"(r, psi), "R"]
         :return:
         """
         self.stall = False
-        Vx, V_total = self.compute_velocity(omega, position_rotor, rotor_speed)
-        aoa = self.compute_aoa(rotor_speed, Vx)
+        Vxy_angle = np.arctan2(rotor_speed[1], rotor_speed[0])
+        psi = np.pi + self.rotation_direction * Vxy_angle
+
+        # vi = inflow_data["v0"]
+        vi = inflow_data["induced_velocity_func"](self.y/inflow_data["R"], psi)
+        Vx, V_total = self.compute_velocity(omega, position_rotor, rotor_speed, vi)
+        aoa = self.compute_aoa(rotor_speed, Vx, vi)
         return V_total, aoa
 
     def compute_LS_term_thrust_lift(self, term_exponent, V, aoa):

@@ -142,6 +142,9 @@ class Blade:
         :param propeller_speed: the velocity in 3D space of the complete propeller
         :param aoa_storage: dictionary used to store the aoa experienced by each blade section
         :param rho: the air density
+        :param inflow_data: data regarding the inflow field, namely the uniform induced inflow field, induced inflow
+        velocity and a lambda function that computes the linear induced field depending on the blade element distance
+        from the hub and angle with respect to the inflow.
         :return:
         """
         blade_angle = (rotation_propeller + self.initial_angle) % (2 * np.pi)
@@ -150,7 +153,7 @@ class Blade:
 
         LS_terms = np.zeros((2, degree_cla + degree_cda + 2))
         for blade_section in (self.blade_sections+self.damaged_blade_sections):
-            V, aoa = blade_section.compute_LS_term_params(omega, blade_angle, propeller_speed)
+            V, aoa = blade_section.compute_LS_term_params(omega, blade_angle, propeller_speed, inflow_data)
             aoa_storage[blade_section.section_number].append(aoa)
             for i in range(degree_cla+1):
                 LS_terms[0, i] += blade_section.compute_LS_term_thrust_lift(i, V, aoa)

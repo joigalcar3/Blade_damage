@@ -3,6 +3,7 @@ import matplotlib.pyplot as plt
 from math import radians
 from math import degrees
 from time import time
+start_time = time()
 
 figure_number = 1
 
@@ -241,6 +242,11 @@ def iteration_printer(i, current_time):
         elapsed_time = new_time - current_time
         current_time = new_time
         print(f'Iteration {i}. Elapsed time: {elapsed_time}')
+
+    if i % 10 == 0:
+        elapsed_time = time() - start_time
+        print(f'Elapsed time since the beginning of the identification: {elapsed_time}')
+
     return current_time
 
 
