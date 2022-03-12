@@ -262,7 +262,7 @@ def compute_LS(LS_method, W_matrix, A, b):
     """
     # Check what Least Squares method is used and apply the computation of the unknowns
     if LS_method == "WLS":  # Weighted Least Squares
-        if not W_matrix:
+        if W_matrix is None:
             W_straight = np.zeros(A.shape[0])
             W_straight[1::2] = 3600
             W_straight[0::2] = 1

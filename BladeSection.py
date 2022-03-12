@@ -177,8 +177,15 @@ class BladeSection:
         Vxy_angle = np.arctan2(rotor_speed[1], rotor_speed[0])
         psi = np.pi + self.rotation_direction * Vxy_angle
 
+        # Computation of the induced velocity
         # vi = inflow_data["v0"]
-        vi = inflow_data["induced_velocity_func"](self.y/inflow_data["R"], psi)
+        vi = inflow_data["induced_velocity_func"](self.y, psi)
+
+        # The following expression is wrong. In all papers r is meant as the distance of the blade element to the rotor
+        # hub
+        # vi = inflow_data["induced_velocity_func"](self.y / inflow_data["R"], psi)
+
+        # Compute the velocities of the vehicle and the angle of attack
         Vx, V_total = self.compute_velocity(omega, position_rotor, rotor_speed, vi)
         aoa = self.compute_aoa(rotor_speed, Vx, vi)
         return V_total, aoa

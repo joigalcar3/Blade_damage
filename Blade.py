@@ -154,7 +154,7 @@ class Blade:
         LS_terms = np.zeros((2, degree_cla + degree_cda + 2))
         for blade_section in (self.blade_sections+self.damaged_blade_sections):
             V, aoa = blade_section.compute_LS_term_params(omega, blade_angle, propeller_speed, inflow_data)
-            aoa_storage[blade_section.section_number].append(aoa)
+            aoa_storage[blade_section.section_number].append(aoa[0])
             for i in range(degree_cla+1):
                 LS_terms[0, i] += blade_section.compute_LS_term_thrust_lift(i, V, aoa)
                 LS_terms[1, i] += blade_section.compute_LS_term_torque_lift(i, V, aoa)

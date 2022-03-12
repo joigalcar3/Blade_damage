@@ -8,18 +8,18 @@ from Propeller import Propeller
 percentage_broken_blade_length = 20  # [%]
 angle_first_blade = 0  # [deg]
 state_blades = [1, 1, 1]  # switches [-]: 1 means that it is healthy
-n_blade_segment = 100     # [-]
-number_samples = 1000    # [-]
-degree_cla = 3         # [-]
-degree_cda = 3           # [-]
+n_blade_segment = 50     # [-]
+number_samples = 500    # [-]
+degree_cla = 2         # [-]
+degree_cda = 2           # [-]
 start_cla_plot = -5     # [deg]
-finish_cla_plot = 50     # [deg]
+finish_cla_plot = 30     # [deg]
 min_w = -2
 max_w = -0.5
 va = 3
 coefficients_identification = True
 activate_params_blade_contribution_plotting = False
-LS_method = "OLS"       # the type of least squares used for the identification of the drag and lift coefficients
+LS_method = "GLS"       # the type of least squares used for the identification of the drag and lift coefficients
 n_rot_steps = 10        # The number of propeller positions used for taking the average
 activate_avg_rot = True
 
@@ -33,8 +33,8 @@ second_segment_length = 0.032  # [m] measured 0.032
 base_chord = 0.013  # [m] measured 0.013
 length_blade_origin = 0.075  # [m] measured 0.076
 radius_hub = 0.011  # [m] measured 0.012
-start_twist = 45  # [deg]
-finish_twist = 5  # [deg]
+start_twist = 27  # [deg] measured 26.39 [deg]
+finish_twist = 5  # [deg] measured 4.46 [deg]
 
 chord_lengths_rt_lst = [base_chord, largest_chord_length, tip_chord]
 first_segment_length = length_blade_origin - radius_hub - second_segment_length
@@ -97,6 +97,7 @@ if coefficients_identification:
                                                             activate_plotting=True,
                                                             activate_params_blade_contribution_plotting=
                                                             activate_params_blade_contribution_plotting,
+                                                            LS_method=LS_method, start_plot=start_cla_plot,
                                                             finish_plot=finish_cla_plot, n_rot_steps=n_rot_steps)
     cla_coeffs = coeffs[:degree_cla+1, 0]
     cda_coeffs = coeffs[degree_cla+1:, 0]

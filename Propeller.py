@@ -273,7 +273,7 @@ class Propeller:
         current_time = time()
         for i in range(number_samples):
             # Print the time that has passed since the last iteration
-            iteration_printer(i, current_time)
+            current_time = iteration_printer(i, current_time)
 
             # Compute the current scenario conditions
             body_velocity, pqr, omega = self.generate_ls_dp_input(min_w, max_w, va)
@@ -309,7 +309,7 @@ class Propeller:
     def compute_cla_coeffs_avg_rot(self, number_samples, number_sections, degree_cla, degree_cda, min_w=-1, max_w=1,
                                    va=2,
                                    rho=1.225, activate_plotting=True, activate_params_blade_contribution_plotting=False,
-                                   LS_method="OLS", W_matrix=0, start_plot=-30, finish_plot=30, n_rot_steps=10):
+                                   LS_method="OLS", W_matrix=None, start_plot=-30, finish_plot=30, n_rot_steps=10):
         """
         Function that computes the cl-alpha coefficients using Least Squares. In contrast with the compute_cla_coeffs
         method, here the average of a complete rotation is taken for the coefficients, instead of just one instantaneous
@@ -334,12 +334,12 @@ class Propeller:
         """
         A = np.zeros((number_samples * 2, degree_cla + degree_cda + 2))
         b = np.zeros((number_samples * 2, 1))
-        rot_angles = np.linspace(0, 2 * pi, n_rot_steps)
+        rot_angles = np.linspace(0, 2 * np.pi, n_rot_steps)
         aoa_storage = defaultdict(list)
         current_time = time()
         for i in range(number_samples):
             # Print the time that has passed with respect to the last iteration
-            iteration_printer(i, current_time)
+            current_time = iteration_printer(i, current_time)
 
             # Compute the current scenario conditions
             body_velocity, pqr, omega = self.generate_ls_dp_input(min_w, max_w, va)
@@ -353,15 +353,16 @@ class Propeller:
             inflow_data = self.compute_uniform_induced_inflow(T, rho, omega)
 
             # Compute the terms corresponding to the A matrix of LS
-            LS_terms_blades = []
+            LS_terms_blades = [np.zeros((2, degree_cla + degree_cda + 2))] * len(self.blades)
             for rot_angle in rot_angles:
+                blade_number = 0
                 for blade in self.blades:
                     LS_terms, aoa_storage = blade.compute_LS_params(number_sections, degree_cla, degree_cda, omega,
                                                                     rot_angle, self.propeller_velocity,
                                                                     aoa_storage, inflow_data=inflow_data)
-                    A[2 * i:2 * i + 2, :] += LS_terms
-                    LS_terms_blades.append(LS_terms)
-            A[2 * i:2 * i + 2, :] /= n_rot_steps
+                    A[2 * i:2 * i + 2, :] += LS_terms/n_rot_steps
+                    LS_terms_blades[blade_number] = LS_terms/n_rot_steps
+                    blade_number += 1
             if activate_params_blade_contribution_plotting:
                 plot_coeffs_params_blade_contribution(LS_terms_blades, [T, N])
 
@@ -396,7 +397,7 @@ class Propeller:
         bnds = ((0, 20),)
 
         # Uniform induced velocity and inflow
-        v0 = minimize(min_func, x0, method='Nelder-Mead', tol=1e-6, options={'disp': True}, bounds=bnds).x[0]
+        v0 = minimize(min_func, x0, method='Nelder-Mead', tol=1e-6, options={'disp': False}, bounds=bnds).x[0]
         lambda_0 = v0 / (omega * R)
 
         # Compute wake skew angle
@@ -405,8 +406,8 @@ class Propeller:
         Chi = np.arctan(mu_x / (mu_z + lambda_0))
 
         # Compute kx and ky weighting factors
-        kx = 4 / 3 * ((1 - np.cos(Chi) - 1.8 * mu_x ** 2) / np.sin(Chi))
-        ky = -2 * mu_x
+        kx = 4.0 / 3.0 * ((1 - np.cos(Chi) - 1.8 * mu_x ** 2) / np.sin(Chi))
+        ky = -2.0 * mu_x
         induced_velocity_func = lambda r, psi: lambda_0 * (1 + kx * r * np.cos(psi) + ky * r * np.sin(psi)) * omega * R
 
         inflow_data = {"lambda_0": lambda_0, "v0": v0, "induced_velocity_func": induced_velocity_func, "R": R}
