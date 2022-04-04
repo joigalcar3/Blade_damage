@@ -122,7 +122,7 @@ class BladeSection:
         else:
             aoa = self.twist - velocity_angle
 
-        if degrees(aoa) < -5 or degrees(aoa) > 25:
+        if degrees(aoa) < -25 or degrees(aoa) > 25:
             self.stall = True
             print(f'An angle of attack of {degrees(aoa)} degrees means that blade section {self.section_number} '
                   f'has stalled.')

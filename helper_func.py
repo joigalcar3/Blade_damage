@@ -1,8 +1,10 @@
 import numpy as np
+from scipy.optimize import minimize, NonlinearConstraint
 import matplotlib.pyplot as plt
 from math import radians
 from math import degrees
 from time import time
+
 start_time = time()
 
 figure_number = 1
@@ -23,11 +25,25 @@ def trapezoid_params(bc, tc, h):
 
 
 def compute_trapezoid_area(bc, tc, h):
+    """
+    Function that computes the area of a trapezoid given its dimensions
+    :param bc: the base chord
+    :param tc: the tip chord
+    :param h: the height of the trapezoid
+    :return: the area of the trapezoid
+    """
     area = (tc + bc) * h / 2
     return area
 
 
 def compute_trapezoid_cg(bc, tc, h):
+    """
+    Compute the location of the trapezoid center of gravity assuming that the material density is constant
+    :param bc: the base chord
+    :param tc: the tip chord
+    :param h: the trapezoid length
+    :return: the location along the h direction where the center of gravity is located
+    """
     y_bar = (2 * tc + bc) / (tc + bc) * h / 3
     return y_bar
 
@@ -53,11 +69,28 @@ def compute_chord_blade(chords, hs, pos):
 
 
 def compute_chord_trapezoid(bc, tc, h, h0, pos):
+    """
+    Function that computes the chord of a trapezoid at a specific location along the h direction
+    :param bc: chord at the base
+    :param tc: chord at the tip
+    :param h: length of the trapezoid
+    :param h0: position along the blade at which the trapezoid base is located
+    :param pos: position along the blade at which we would like to compute the chord
+    :return: chord length
+    """
     chord = bc - (bc - tc) / h * (pos - h0)
     return chord
 
 
 def compute_average_chord(chords, hs, pos_start, pos_end):
+    """
+    Function to compute the average chord of a blade section
+    :param chords: chord lengths of the trapezoids that together make the blade
+    :param hs: list of all the trapezoid lengths that together make the blade
+    :param pos_start: start location of the blade section
+    :param pos_end: end location of the blade section
+    :return: average chord length of a blade section
+    """
     h0 = 0
     area = 0
     distance = pos_end - pos_start
@@ -82,7 +115,21 @@ def compute_average_chord(chords, hs, pos_start, pos_end):
 
 
 def compute_average_chords(chords, hs, n_segments):
+    """
+    Function that computes the average chords of all the blade section
+    :param chords: list with all the blade sections' chords
+    :param hs: list with all the blade sections' lengths
+    :param n_segments: number of blade sections
+    :return:
+    """
+
     def update_chords_h(counter, h_origin):
+        """
+        Function that retrieves the information related to a blade section
+        :param counter: current blade section index
+        :param h_origin: start location of the blade section along the blade axis
+        :return:
+        """
         if counter >= 0:
             h_origin += hs[counter]
         counter += 1
@@ -120,6 +167,12 @@ def compute_average_chords(chords, hs, n_segments):
 
 
 def compute_P52(x1, x2):
+    """
+    Function from the Matlab Bebop model for computing a 5th degree polynomial with two variables
+    :param x1: first variable
+    :param x2: second variable
+    :return:
+    """
     U = 1
     A1 = 1 * U
     A2 = x1 * U
@@ -197,6 +250,13 @@ def compute_psi(beta, arm_angle, propeller_number):
 
 
 def compute_P32(x1, x2, U):
+    """
+    Function obtained from the Matlab Bebop model to compute a 3rd order polynomial with two variables
+    :param x1: first variable
+    :param x2: second variable
+    :param U: additional input
+    :return:
+    """
     A2 = x1 * U
     A3 = x2 * U
     A4 = x1 ** 2 * U
@@ -212,6 +272,15 @@ def compute_P32(x1, x2, U):
 
 
 def compute_Fn(x, n, U, alpha, beta):
+    """
+    Function retrieved from the Matlab Bebop model that computes the nth order Fourier series
+    :param x: variable for obtaining the Fourier series
+    :param n: degree of the Fourier series
+    :param U: additional input
+    :param alpha: horizontal advance ratio
+    :param beta: sideslip angle equation
+    :return:
+    """
     AF = []
     for i in range(1, n + 1):
         AF.append(compute_P32(alpha, beta, np.sin(i * x) * U))
@@ -250,6 +319,183 @@ def iteration_printer(i, current_time):
     return current_time
 
 
+def optimize(A, b, optimization_method, **kwargs):
+    """
+    Method to carry out the optimization given the A and b matrices
+    :param A: the A matrix that contains the equation components as a function of the cl and cd coefficients
+    :param b: the thrust and torque values from the Matlab model
+    :param optimization_method: method used for the optimization
+    :param kwargs: variable that encapsulates in dictionary format all the variables used in the different optimizations
+    It contains the LS_method, W_matrix, min_method, switch_constrains, cl_degree, cd_degree, min_angle, max_angle.
+    :return: the cl and cd coefficients
+    """
+
+    if optimization_method == "LS":
+        x = compute_LS(kwargs["LS_method"], kwargs["W_matrix"], A, b)
+    elif optimization_method == "min":
+        # The number of parameters that need to be identified
+        n_params = A.shape[1]
+
+        # The initial value of the cl and cd coefficients
+        x0 = np.ones(n_params) * 0.1
+        # x0 = np.array([0.44, 2.53, -9.19, 0.97, 0.1, 0.1]).T
+
+        # Method used for the optimization
+        min_method = kwargs["min_method"]
+
+        # Creation of the constraints and optimization of the least squares equation
+        switch_constrains = kwargs["switch_constrains"]
+        if switch_constrains:
+            arguments_constraint = (kwargs["cl_degree"], kwargs["cd_degree"], kwargs["min_angle"], kwargs["max_angle"])
+            constraints = ({"type": "ineq", "fun": nonlinear_constraint_drag_minimum, "args": arguments_constraint},
+                           {"type": "ineq", "fun": nonlinear_constraint_lift_maximum, "args": arguments_constraint},
+                           {"type": "ineq", "fun": nonlinear_constraint_lift_decaying, "args": arguments_constraint},
+                           {"type": "ineq", "fun": nonlinear_constraint_lift_positive_slope, "args": arguments_constraint},
+                           {"type": "ineq", "fun": nonlinear_constraint_lift_alpha0, "args": arguments_constraint})
+            x = minimize(minimize_func, x0, args=(A, b), method=min_method, constraints=constraints,
+                         options={"disp": True}).x
+        else:
+            x = minimize(minimize_func, x0, args=(A, b), method=min_method).x
+    else:
+        raise Exception("The proposed optimization method can not be executed.")
+    return np.reshape(x, [-1, 1])
+
+
+def minimize_func(x, A, b):
+    """
+    Function to minimize after having obtained the A and b matrices
+    :param x: matrix to be found through the optimization
+    :param A: matrix obtained that contains the values of the thrust and the torque from BEM as a function of the Cl and
+    Cd coefficients
+    :param b: matrix with the values of torque and thrust obtained from the Matlab
+    :return: RMSE error that is used as optimization parameter
+    """
+    error = b - np.reshape(np.matmul(A, np.reshape(x, [-1, 1])), [-1, 1])
+    error_thrust = error[::2]
+    error_torque = error[1::2]
+    RMSE_thrust = np.sqrt(np.mean(np.power(error_thrust, 2))) / np.std(error_thrust)
+    RMSE_torque = np.sqrt(np.mean(np.power(error_torque, 2))) / np.std(error_torque)
+    RMSE = (RMSE_thrust + RMSE_torque)/2.
+    # RMSE = np.sqrt(np.mean(np.power(error, 2))) / np.std(error)
+    return RMSE
+
+def nonlinear_constraint_drag_minimum(local_x, cl_degree, cd_degree, min_angle, max_angle):
+    """
+    Constraint to avoid that the drag value goes negative range
+    :param local_x: value of the cl and cd coefficients
+    :param cl_degree: degree of the lift coefficient equation
+    :param cd_degree: degree of the drag coefficient equation
+    :param min_angle: min angle of attack to consider for the constraint
+    :param max_angle: max angle of attack to consider for the constraint
+    :return: the minimum value in the cd curve
+    """
+    output = constraint_computation(-max_angle, max_angle, cl_degree, cd_degree, "cd", local_x, "min")
+    return output
+
+
+def nonlinear_constraint_lift_maximum(local_x, cl_degree, cd_degree, min_angle, max_angle):
+    """
+    Constraint to avoid that the lift value to obtain a very large value, namely higher than 3
+    :param local_x: value of the cl and cd coefficients
+    :param cl_degree: degree of the lift coefficient equation
+    :param cd_degree: degree of the drag coefficient equation
+    :param min_angle: min angle of attack to consider for the constraint
+    :param max_angle: max angle of attack to consider for the constraint
+    :return: the difference between the intended maximum of 3 and the actual cl curve
+    """
+    output = constraint_computation(min_angle, max_angle, cl_degree, cd_degree, "cl", local_x, "max")
+    return 5-output
+
+
+def nonlinear_constraint_lift_decaying(local_x, cl_degree, cd_degree, min_angle, max_angle):
+    """
+    Constraint to force the lift to decay with high angles of attack. dCl/da = x1 + 2*a*x2
+    :param local_x: value of the cl and cd coefficients
+    :param cl_degree: degree of the lift coefficient equation
+    :param cd_degree: degree of the drag coefficient equation
+    :param min_angle: min angle of attack to consider for the constraint
+    :param max_angle: max angle of attack to consider for the constraint
+    :return: the difference between the intended maximum of 3 and the actual cl curve
+    """
+    output = -constraint_computation(25, max_angle, cl_degree, cd_degree, "cl", local_x, "max", True)
+    return output
+
+
+def nonlinear_constraint_lift_positive_slope(local_x, cl_degree, cd_degree, min_angle, max_angle):
+    """
+    Constraint to force the lift to increase with the angle of attack for the range of 0-7 degrees
+    :param local_x: value of the cl and cd coefficients
+    :param cl_degree: degree of the lift coefficient equation
+    :param cd_degree: degree of the drag coefficient equation
+    :param min_angle: min angle of attack to consider for the constraint
+    :param max_angle: max angle of attack to consider for the constraint
+    :return: the difference between the intended maximum of 3 and the actual cl curve
+    """
+    output = constraint_computation(0, 7, cl_degree, cd_degree, "cl", local_x, "min", True)
+    return output
+
+
+def nonlinear_constraint_lift_alpha0(local_x, cl_degree, cd_degree, min_angle, max_angle):
+    """
+    Constraint to force the lift curve to cross the x-axis within the range [-10,10]. Since the airfoil is not
+    excessively cambered, the angle of attack of zero lift would most likely be within this range. Usually it is between
+    -3.5 and -1.5 when it is not symmetrical
+    (http://www.aerodynamics4students.com/aircraft-performance/lift-and-lift-coefficient.php)
+    :param local_x: value of the cl and cd coefficients
+    :param cl_degree: degree of the lift coefficient equation
+    :param cd_degree: degree of the drag coefficient equation
+    :param min_angle: min angle of attack to consider for the constraint
+    :param max_angle: max angle of attack to consider for the constraint
+    :return: the difference between the intended maximum of 3 and the actual cl curve
+    """
+    output = -constraint_computation(-10, 10, cl_degree, cd_degree, "cl", local_x, "min")
+    return output
+
+
+def constraint_computation(min_angle, max_angle, cl_degree, cd_degree, cl_or_cd, local_x, min_or_max,
+                                   switch_slope=False):
+    """
+    Function to create the A matrix that will be used to defined the constraints by applying our knowledge about the
+    cl and cd curves with respect to the angle of attack.
+    :param min_angle: min angle of attack to consider for the constraint
+    :param max_angle: max angle of attack to consider for the constraint
+    :param cl_degree: degree of the lift coefficient equation
+    :param cd_degree: degree of the drag coefficient equation
+    :param cl_or_cd: whether we are talking about the cl or the cd alpha curves
+    :param local_x: the local value of the cl and cd coefficients
+    :param min_or_max: whether the minimum or maximum values should be considered
+    :param switch_slope: whether the constraint uses the curve slope
+    :return: the parameter that defines the constraint
+    """
+
+    angles = np.radians(np.arange(min_angle, max_angle+1))
+    local_A = np.zeros((angles.shape[0], cl_degree + cd_degree + 2))
+    if cl_or_cd == "cl":
+        if switch_slope:
+            for i in range(1, cl_degree + 1):
+                local_A[:, i] = i * np.power(angles, i - 1)
+        else:
+            for i in range(cl_degree + 1):
+                local_A[:, i] = np.power(angles, i)
+    elif cl_or_cd == "cd":
+        for i in range(cd_degree + 1):
+            local_A[:, 1 + cl_degree + i] = np.power(angles, i)
+    else:
+        raise Exception("This type of value range for accessing the A matrix of the constraints is not considered.")
+
+    # Computation of the curve values
+    local_b = np.matmul(local_A, np.reshape(local_x, [-1, 1]))
+
+    if min_or_max == "min":
+        output = np.min(local_b)
+    elif min_or_max == "max":
+        output = np.max(local_b)
+    else:
+        raise Exception("This type of value range for accessing the A matrix of the constraints is not considered.")
+
+    return output
+
+
 def compute_LS(LS_method, W_matrix, A, b):
     """
     Compute the Least Squares method according to the method proposed in LS_method
@@ -283,10 +529,18 @@ def compute_LS(LS_method, W_matrix, A, b):
 
 # Plotters
 def plot_chord_twist(chord, twist):
+    """
+    Two plots:
+        - The first plot shows the chord of the blade
+        - The second plot shows the twist of the blade along its span
+    :param chord: list of chord values
+    :param twist: list of twist values
+    :return:
+    """
     global figure_number
 
     x_chord = range(len(chord))
-    y_chord_1 = [i/2 for i in chord]
+    y_chord_1 = [i / 2 for i in chord]
     y_chord_2 = [-i for i in y_chord_1]
     plt.figure(figure_number)
     figure_number += 1
@@ -327,7 +581,7 @@ def plot_cla(x, A, b, aoa_storage, start_alpha, finish_alpha, degree_cla, degree
         :return:
         """
         cl = 0
-        for i in range(degree_cla+1):
+        for i in range(degree_cla + 1):
             cl += alpha ** i * x[i]
         return cl
 
@@ -338,8 +592,9 @@ def plot_cla(x, A, b, aoa_storage, start_alpha, finish_alpha, degree_cla, degree
         :return:
         """
         cd = 0
-        for i in range(degree_cla+1, degree_cla + degree_cda + 2):
-            cd += alpha ** i * x[i]
+        for i in range(degree_cla + 1, degree_cla + degree_cda + 2):
+            exponent = i-(degree_cla + 1)
+            cd += alpha ** exponent * x[i]
         return cd
 
     # Creation of the range of alphas to plot and the cl-cd coefficients
@@ -368,7 +623,7 @@ def plot_cla(x, A, b, aoa_storage, start_alpha, finish_alpha, degree_cla, degree
     # Compare the results predicted by multiplying A and x, with respect to the observations in b for the thrust
     b_approx = np.matmul(A, x)
     number_p = A.shape[0]
-    data_points = range(int(number_p/2))
+    data_points = range(int(number_p / 2))
     plt.figure(figure_number)
     figure_number += 1
     plt.plot(data_points, b[::2], 'ro')
@@ -390,32 +645,93 @@ def plot_cla(x, A, b, aoa_storage, start_alpha, finish_alpha, degree_cla, degree
 
     # Computation of error
     error = b - b_approx
-    average_error_T = np.mean(error[::2])
-    average_error_Q = np.mean(error[1::2])
-    percentage_error = [error[i, 0]/b[i, 0] * 100 for i in range(error.shape[0])]
+    error_T = error[::2]
+    error_Q = error[1::2]
+    average_error_T = np.mean(error_T)
+    average_error_Q = np.mean(error_Q)
+    percentage_error = [error[i, 0] / b[i, 0] * 100 for i in range(error.shape[0])]
     print(f"Mean error thrust: {average_error_T} [N].")
     print(f"Mean error torque: {average_error_Q} [Nm].")
     print(f"Maximum error percentage: {max(percentage_error)}%")
 
+    # Computation of relative or normalized RMSE
+    # Divide RMSE by difference between max and min of observed values
+    RMSE_T1 = np.sqrt(np.mean(np.power(error_T, 2))) / (np.max(error_T) - np.min(error_T))
+    RMSE_Q1 = np.sqrt(np.mean(np.power(error_Q, 2))) / (np.max(error_Q) - np.min(error_Q))
+
+    # Divide RMSE by standard deviation of observed values
+    RMSE_T2 = np.sqrt(np.mean(np.power(error_T, 2))) / np.std(error_T)
+    RMSE_Q2 = np.sqrt(np.mean(np.power(error_Q, 2))) / np.std(error_Q)
+
     # Plot of error for thrust
+    text_T_RMSE = f'Diff RMSE = {np.round(RMSE_T1, 2)} and Std RMSE = {np.round(RMSE_T2, 2)}'
+    text_T_mean = f'Mean = {np.round(average_error_T, 4)}'
     plt.figure(figure_number)
     figure_number += 1
-    plt.plot(data_points, error[::2], 'g-')
-    plt.plot(data_points, np.repeat(average_error_T, len(data_points)), 'k--')
+    plt.plot(data_points, error[::2], 'g-', label=text_T_RMSE)
+    plt.plot(data_points, np.repeat(average_error_T, len(data_points)), 'k--', label=text_T_mean)
     plt.xlabel("Data point [-]")
     plt.ylabel("Approximation thrust error [N]")
     plt.title("Approximation error thrust")
+    plt.legend()
     plt.grid(True)
 
     # Plot of error for torque
+    text_Q_RMSE = f'Diff RMSE = {np.round(RMSE_Q1, 2)} and Std RMSE = {np.round(RMSE_Q2, 2)}'
+    text_Q_mean = f'Mean = {np.round(average_error_Q, 4)}'
     plt.figure(figure_number)
     figure_number += 1
-    plt.plot(data_points, error[1::2], 'g-')
-    plt.plot(data_points, np.repeat(average_error_Q, len(data_points)), 'k--')
+    plt.plot(data_points, error[1::2], 'g-', label=text_Q_RMSE)
+    plt.plot(data_points, np.repeat(average_error_Q, len(data_points)), 'k--', label=text_Q_mean)
     plt.xlabel("Data point [-]")
     plt.ylabel("Approximation torque error [Nm]")
     plt.title("Approximation error torque")
     plt.grid(True)
+    plt.legend()
+    plt.show()
+
+    # Validation plots to observe the whiteness of the residual
+    n_shifts = error_T.shape[0] - 1
+    lst_T = np.ones(2*n_shifts-1)
+    lst_Q = np.ones(2*n_shifts-1)
+    lst_T_center = np.matmul(error_T.T, error_T)
+    lst_Q_center = np.matmul(error_Q.T, error_Q)
+    lst_T[n_shifts] = 1
+    lst_Q[n_shifts] = 1
+    for i in range(1, n_shifts):
+        value_T = np.matmul(error_T[:-i, :].T, error_T[i:, :])
+        value_Q = np.matmul(error_Q[:-i, :].T, error_Q[i:, :])
+        lst_T[n_shifts-1+i] = value_T/lst_T_center
+        lst_T[n_shifts-1-i] = value_T/lst_T_center
+        lst_Q[n_shifts-1+i] = value_Q/lst_Q_center
+        lst_Q[n_shifts-1-i] = value_Q/lst_Q_center
+
+    # Plot corresponding to the thrust
+    x_axis = list(range(-n_shifts+1, n_shifts))
+    conf = 1.96/np.sqrt(error_T.shape[0])
+    plt.figure(figure_number)
+    figure_number += 1
+    plt.plot(x_axis, lst_T, 'b-')
+    plt.axhline(y=conf, xmin=-error_T.shape[0], xmax=error_T.shape[0], color="red", linestyle="--")
+    plt.axhline(y=-conf, xmin=-error_T.shape[0], xmax=error_T.shape[0], color="red", linestyle="--")
+    plt.xlabel("Number of lags")
+    plt.ylabel("Error autocorrelation")
+    plt.title("Autocorrelation of model residual: Thrust")
+    plt.grid(True)
+    plt.legend()
+    plt.show()
+
+    # Plot corresponding to the torque
+    plt.figure(figure_number)
+    figure_number += 1
+    plt.plot(x_axis, lst_Q, 'b-')
+    plt.axhline(y=conf, xmin=-error_Q.shape[0], xmax=error_Q.shape[0], color="red", linestyle="--")
+    plt.axhline(y=-conf, xmin=-error_Q.shape[0], xmax=error_Q.shape[0], color="red", linestyle="--")
+    plt.xlabel("Number of lags")
+    plt.ylabel("Error autocorrelation")
+    plt.title("Autocorrelation of model residual: Torque")
+    plt.grid(True)
+    plt.legend()
     plt.show()
 
     # Plot of the angles of attack seen by each of the selected blade sections. It is represented as a box plot such
@@ -505,8 +821,8 @@ def plot_coeffs_params_blade_contribution(LS_terms, b):
     n_blades = len(LS_terms)
     n_coeffs = LS_terms[0].shape[1]
     fig, ax = plt.subplots(2, 1)
-    coefficient_labels = [f'C{i+1}' for i in range(n_coeffs)]
-    blades_labels = [f'Blade {i+1}' for i in range(n_blades)]
+    coefficient_labels = [f'C{i + 1}' for i in range(n_coeffs)]
+    blades_labels = [f'Blade {i + 1}' for i in range(n_blades)]
     y_labels = ['Thrust', 'Torque']
 
     for i in range(2):
@@ -525,6 +841,3 @@ def plot_coeffs_params_blade_contribution(LS_terms, b):
 
     fig.suptitle('Blade contribution to coefficient params')
     plt.show()
-
-
-

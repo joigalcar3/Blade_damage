@@ -6,7 +6,7 @@ from collections import defaultdict
 from scipy.optimize import minimize
 
 from helper_func import compute_P52, compute_beta, compute_Fn, compute_psi, plot_cla, \
-    plot_coeffs_params_blade_contribution, iteration_printer, compute_LS
+    plot_coeffs_params_blade_contribution, iteration_printer, compute_LS, optimize
 from aero_data import *
 
 
@@ -246,7 +246,8 @@ class Propeller:
 
     def compute_cla_coeffs(self, number_samples, number_sections, degree_cla, degree_cda, min_w=-1, max_w=1, va=2,
                            rho=1.225, activate_plotting=True, activate_params_blade_contribution_plotting=False,
-                           LS_method="OLS", W_matrix=0, start_plot=-30, finish_plot=30):
+                           LS_method="OLS", W_matrix=0, start_plot=-30, finish_plot=30, optimization_method="LS",
+                           min_method="Nelder-Mead", switch_constrains=False):
         """
         Function that computes the cl-alpha coefficients using Least Squares
         :param number_samples: the number of samples that will be taken in order to obtain the cla curve
@@ -264,6 +265,9 @@ class Propeller:
         :param W_matrix: the matrix used for WLS
         :param start_plot: first angle of attack to plot
         :param finish_plot: last angle of attack to plot
+        :param optimization_method: optimization method used for the computation of the cl and cd coefficients
+        :param min_method: optimization method used in scipy.minimization
+        :param switch_constrains: whether constraints should be used in the optimization
         :return: the identified unknown parameters, as well as the A (regression matrix) and b (observations vector)
         matrices
         """
@@ -300,8 +304,10 @@ class Propeller:
                 plot_coeffs_params_blade_contribution(LS_terms_blades, [T, N])
 
         # Carry out the Least Squares
-        x = compute_LS(LS_method, W_matrix, A, b)
-
+        x = optimize(A, b, optimization_method, LS_method=LS_method, W_matrix=W_matrix, cl_degree=degree_cla,
+                     cd_degree=degree_cda, min_angle=0, max_angle=finish_plot,
+                     min_method=min_method, switch_constrains=switch_constrains)
+        # x = compute_LS(LS_method, W_matrix, A, b)
         if activate_plotting:
             plot_cla(x, A, b, aoa_storage, start_plot, finish_plot, degree_cla, degree_cda)
         return x, A, b
@@ -309,7 +315,8 @@ class Propeller:
     def compute_cla_coeffs_avg_rot(self, number_samples, number_sections, degree_cla, degree_cda, min_w=-1, max_w=1,
                                    va=2,
                                    rho=1.225, activate_plotting=True, activate_params_blade_contribution_plotting=False,
-                                   LS_method="OLS", W_matrix=None, start_plot=-30, finish_plot=30, n_rot_steps=10):
+                                   LS_method="OLS", W_matrix=None, start_plot=-30, finish_plot=30, n_rot_steps=10,
+                                   optimization_method="LS", min_method="Nelder-Mead", switch_constrains=False):
         """
         Function that computes the cl-alpha coefficients using Least Squares. In contrast with the compute_cla_coeffs
         method, here the average of a complete rotation is taken for the coefficients, instead of just one instantaneous
@@ -330,6 +337,9 @@ class Propeller:
         :param degree_cda: the degree of the polynomial that we want to use to approximate the Cd-a curve
         :param activate_plotting: whether the cl-alpha curve is plotted at the end
         :param n_rot_steps: number of propeller positions used when taking the average/integral
+        :param optimization_method: optimization method used for the computation of the cl and cd coefficients
+        :param min_method: optimization method used in scipy.minimization
+        :param switch_constrains: whether constraints should be used in the optimization
         :return:
         """
         A = np.zeros((number_samples * 2, degree_cla + degree_cda + 2))
@@ -367,7 +377,10 @@ class Propeller:
                 plot_coeffs_params_blade_contribution(LS_terms_blades, [T, N])
 
         # Carry out the Least Squares
-        x = compute_LS(LS_method, W_matrix, A, b)
+        x = optimize(A, b, optimization_method, LS_method=LS_method, W_matrix=W_matrix, cl_degree=degree_cla,
+                     cd_degree=degree_cda, min_angle=0, max_angle=finish_plot,
+                     min_method=min_method, switch_constrains=switch_constrains)
+        # x = compute_LS(LS_method, W_matrix, A, b)
 
         # Plot the resulting cla and cda curves
         if activate_plotting:

@@ -8,25 +8,37 @@ from Propeller import Propeller
 percentage_broken_blade_length = 20  # [%]
 angle_first_blade = 0  # [deg]
 state_blades = [1, 1, 1]  # switches [-]: 1 means that it is healthy
-n_blade_segment = 50     # [-]
+n_blade_segment = 50    # [-]
 number_samples = 500    # [-]
-degree_cla = 2         # [-]
-degree_cda = 2           # [-]
-start_cla_plot = -5     # [deg]
-finish_cla_plot = 30     # [deg]
-min_w = -2
-max_w = -0.5
-va = 3
-coefficients_identification = True
-activate_params_blade_contribution_plotting = False
+degree_cla = 2          # [-]
+degree_cda = 2          # [-]
+start_cla_plot = -10     # [deg]
+finish_cla_plot = 30    # [deg]
+min_w = -2              # [m/s]
+max_w = -0.5            # [m/s]
+va = 3                  # [m/s]
+coefficients_identification = True  # Whether the coefficients need to be identified
+activate_params_blade_contribution_plotting = False  # Plot that shows how each blade section contributes to the coeffs
 LS_method = "GLS"       # the type of least squares used for the identification of the drag and lift coefficients
 n_rot_steps = 10        # The number of propeller positions used for taking the average
-activate_avg_rot = True
+activate_avg_rot = True  # Switch to activate whether the instantaneous propeller state is used or the rotation average
+optimization_method = 'min'   # Whether the opt. method should be Least Squares ("LS") or a scipy.minimization ("min")
+min_method = "trust-constr"   # Nonlinear optimization method used to minimize Ax-b: Nelder-Mead, COBYLA
+switch_constrains = True    # Whether the optimization should be constrained. Only for COBYLA, SLSQP and trust-constr
+
+# Only for COBYLA, SLSQP and trust-constr accept constraints. Equality constraint means that the constraint function
+# result is to be zero whereas inequality means that it is to be non-negative.
+# SLSQP: Minimize a scalar function of one or more variables using Sequential Least Squares Programming
+# trust-constr: Minimize a scalar function subject to constraints.
+# COBYLA: Minimize a scalar function of one or more variables using the Constrained Optimization BY Linear Approximation
+# algorithm. It only supports inequality constraints.
 
 # Propeller info
-propeller_mass = 5.17/1000  # [kg] measured 5.17
-percentage_hub_m = 70  # [%]
+propeller_mass_g = 5.07
+propeller_mass = propeller_mass_g/1000  # [kg] measured 5.17
+blade_mass_g = 1.11
 n_blades = 3  # [-] measured 3
+percentage_hub_m = (propeller_mass_g-blade_mass_g*n_blades)/propeller_mass_g*100  # [%]
 tip_chord = 0.008  # [m] measured 0.008
 largest_chord_length = 0.02  # [m] measured 0.02
 second_segment_length = 0.032  # [m] measured 0.032
@@ -90,7 +102,8 @@ if coefficients_identification:
                                                     activate_params_blade_contribution_plotting=
                                                     activate_params_blade_contribution_plotting,
                                                     LS_method=LS_method, start_plot=start_cla_plot,
-                                                    finish_plot=finish_cla_plot)
+                                                    finish_plot=finish_cla_plot, optimization_method=optimization_method,
+                                                    min_method=min_method, switch_constrains=switch_constrains)
     else:
         coeffs, A, b = propeller.compute_cla_coeffs_avg_rot(number_samples, n_blade_segment, degree_cla, degree_cda,
                                                             min_w=min_w, max_w=max_w, va=va, rho=1.225,
@@ -98,9 +111,11 @@ if coefficients_identification:
                                                             activate_params_blade_contribution_plotting=
                                                             activate_params_blade_contribution_plotting,
                                                             LS_method=LS_method, start_plot=start_cla_plot,
-                                                            finish_plot=finish_cla_plot, n_rot_steps=n_rot_steps)
-    cla_coeffs = coeffs[:degree_cla+1, 0]
-    cda_coeffs = coeffs[degree_cla+1:, 0]
+                                                            finish_plot=finish_cla_plot, n_rot_steps=n_rot_steps,
+                                                            optimization_method=optimization_method,
+                                                            min_method=min_method, switch_constrains=switch_constrains)
+    cla_coeffs = coeffs[:degree_cla + 1, 0]
+    cda_coeffs = coeffs[degree_cla + 1:, 0]
     print(cla_coeffs)
     print(cda_coeffs)
 
