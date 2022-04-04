@@ -1,12 +1,30 @@
+#!/usr/bin/env python3
+"""
+Provides the BladeSection, class for the aerodynamic model identification and computation of forces and moments.
+
+BladeSection holds all the information related to a single blade element according to BEM theory. It is used for the
+computation of the angle of attack and velocity seen by each BladeSection. Additionally, it computes the contribution
+of the BladeSection lift and drag to the thrust force and torque.
+"""
+
+# Modules to import
 import numpy as np
 from math import *
+
+__author__ = "Jose Ignacio de Alvear Cardenas"
+__copyright__ = "Copyright 2022, Jose Ignacio de Alvear Cardenas"
+__credits__ = ["Jose Ignacio de Alvear Cardenas"]
+__license__ = "MIT"
+__version__ = "1.0.1 (04/04/2022)"
+__maintainer__ = "Jose Ignacio de Alvear Cardenas"
+__email__ = "j.i.dealvearcardenas@student.tudelft.nl"
+__status__ = "Development"
 
 
 class BladeSection:
     """
     Class that stores information about a section within a blade
     """
-
     def __init__(self, section_number, chord, section_length, average_twist, initial_chord, final_chord, radius_hub,
                  rotation_direction, air_density=1.225):
         self.section_number = section_number
@@ -19,7 +37,7 @@ class BladeSection:
         self.rotation_direction = rotation_direction
         self.rho = air_density
 
-        self.y = (self.section_number+1/2)*self.dr + self.radius_hub
+        self.y = (self.section_number + 1/2)*self.dr + self.radius_hub
         self.S = self.c * self.dr
         self.stall = False
 
@@ -142,7 +160,7 @@ class BladeSection:
         """
         Vr = self.rotation_direction * omega * self.y   # Velocity at the blade section due to the rotor rotation
         Rot_M = np.array([[np.sin(position_rotor), -np.cos(position_rotor)],
-                          [np.cos(position_rotor), np.sin(position_rotor)]])  # Transformation matrix for the velocity vector
+                          [np.cos(position_rotor), np.sin(position_rotor)]])  # Transformation for the velocity vector
         Vxy = rotor_speed[:2]  # x and y components of the body velocity vector of the rotor
         Vxy_bl = np.matmul(Rot_M, Vxy)  # x-y body velocity vector transformed to the blade coordinate frame
 

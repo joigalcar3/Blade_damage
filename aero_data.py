@@ -1,4 +1,20 @@
+#!/usr/bin/env python3
+"""
+Provides aerodynamic data of the Bebop2 identified in the wind tunnel at TUDelft
+
+It contains the aerodynamic parameters for the Matlab model computations
+"""
+
 import numpy as np
+
+__author__ = "Jose Ignacio de Alvear Cardenas"
+__copyright__ = "Copyright 2022, Jose Ignacio de Alvear Cardenas"
+__credits__ = ["Jose Ignacio de Alvear Cardenas"]
+__license__ = "MIT"
+__version__ = "1.0.1 (04/04/2022)"
+__maintainer__ = "Jose Ignacio de Alvear Cardenas"
+__email__ = "j.i.dealvearcardenas@student.tudelft.nl"
+__status__ = "Development"
 
 k_Ct0 = np.array([[0.0152457017219075, -3.19835880466424e-05, -0.0474659629880834, -5.48089604291955e-08,
                   -0.000164550969624146, 0.650877249185920, 1.10477778832442e-08, -9.76752919452344e-06,

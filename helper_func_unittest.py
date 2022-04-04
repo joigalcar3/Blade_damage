@@ -1,5 +1,21 @@
+#!/usr/bin/env python3
+"""
+Provides the helper functions unittests
+
+It contains the unittests for checking the correct work of the helper functions
+"""
+
 import unittest
 from helper_func import *
+
+__author__ = "Jose Ignacio de Alvear Cardenas"
+__copyright__ = "Copyright 2022, Jose Ignacio de Alvear Cardenas"
+__credits__ = ["Jose Ignacio de Alvear Cardenas"]
+__license__ = "MIT"
+__version__ = "1.0.1 (04/04/2022)"
+__maintainer__ = "Jose Ignacio de Alvear Cardenas"
+__email__ = "j.i.dealvearcardenas@student.tudelft.nl"
+__status__ = "Development"
 
 
 class HelperFunc(unittest.TestCase):

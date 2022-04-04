@@ -1,16 +1,36 @@
+#!/usr/bin/env python3
+"""
+Provides the helper functions, workhorse of the whole blade damage implementation
+
+It contains functions that carry out simple mathematical/geometrical computations, implements the aerodynamic matlab
+model, implements the model identification and all the plotters.
+"""
+
+# Modules to import
 import numpy as np
-from scipy.optimize import minimize, NonlinearConstraint
+from scipy.optimize import minimize
 import matplotlib.pyplot as plt
 from math import radians
 from math import degrees
 from time import time
+from matplotlib.backends.backend_pdf import PdfPages
 
+__author__ = "Jose Ignacio de Alvear Cardenas"
+__copyright__ = "Copyright 2022, Jose Ignacio de Alvear Cardenas"
+__credits__ = ["Jose Ignacio de Alvear Cardenas"]
+__license__ = "MIT"
+__version__ = "1.0.1 (04/04/2022)"
+__maintainer__ = "Jose Ignacio de Alvear Cardenas"
+__email__ = "j.i.dealvearcardenas@student.tudelft.nl"
+__status__ = "Development"
+
+# General global params
 start_time = time()
-
 figure_number = 1
 
 
-# Helper functions
+# Helper functions related to mathematical/geometric operations
+# %%
 def trapezoid_params(bc, tc, h):
     """
     Function that computes the area and location of the trapezoid cg from the bc
@@ -105,9 +125,9 @@ def compute_average_chord(chords, hs, pos_start, pos_end):
                 c1 = tc
                 pos_start = h0 + h
 
-        if (h0 + h) > pos_end >= h0:
-            c2 = compute_chord_trapezoid(bc, tc, h, h0, pos_end)
-            area += compute_trapezoid_area(c1, c2, pos_end - pos_start)
+            if (h0 + h) > pos_end >= h0:
+                c2 = compute_chord_trapezoid(bc, tc, h, h0, pos_end)
+                area += compute_trapezoid_area(c1, c2, pos_end - pos_start)
         h0 += h
 
     average_chord = area / distance
@@ -166,6 +186,8 @@ def compute_average_chords(chords, hs, n_segments):
     return average_chords, segment_chords
 
 
+# Helper functions related to aerodynamic Matlab model
+# %%
 def compute_P52(x1, x2):
     """
     Function from the Matlab Bebop model for computing a 5th degree polynomial with two variables
@@ -319,6 +341,8 @@ def iteration_printer(i, current_time):
     return current_time
 
 
+# Helper functions related to the model identification
+# %%
 def optimize(A, b, optimization_method, **kwargs):
     """
     Method to carry out the optimization given the A and b matrices
@@ -347,10 +371,12 @@ def optimize(A, b, optimization_method, **kwargs):
         switch_constrains = kwargs["switch_constrains"]
         if switch_constrains:
             arguments_constraint = (kwargs["cl_degree"], kwargs["cd_degree"], kwargs["min_angle"], kwargs["max_angle"])
+            # noinspection SpellCheckingInspection
             constraints = ({"type": "ineq", "fun": nonlinear_constraint_drag_minimum, "args": arguments_constraint},
                            {"type": "ineq", "fun": nonlinear_constraint_lift_maximum, "args": arguments_constraint},
                            {"type": "ineq", "fun": nonlinear_constraint_lift_decaying, "args": arguments_constraint},
-                           {"type": "ineq", "fun": nonlinear_constraint_lift_positive_slope, "args": arguments_constraint},
+                           {"type": "ineq", "fun": nonlinear_constraint_lift_positive_slope,
+                            "args": arguments_constraint},
                            {"type": "ineq", "fun": nonlinear_constraint_lift_alpha0, "args": arguments_constraint})
             x = minimize(minimize_func, x0, args=(A, b), method=min_method, constraints=constraints,
                          options={"disp": True}).x
@@ -375,9 +401,10 @@ def minimize_func(x, A, b):
     error_torque = error[1::2]
     RMSE_thrust = np.sqrt(np.mean(np.power(error_thrust, 2))) / np.std(error_thrust)
     RMSE_torque = np.sqrt(np.mean(np.power(error_torque, 2))) / np.std(error_torque)
-    RMSE = (RMSE_thrust + RMSE_torque)/2.
+    RMSE = (RMSE_thrust + RMSE_torque) / 2.
     # RMSE = np.sqrt(np.mean(np.power(error, 2))) / np.std(error)
     return RMSE
+
 
 def nonlinear_constraint_drag_minimum(local_x, cl_degree, cd_degree, min_angle, max_angle):
     """
@@ -404,7 +431,7 @@ def nonlinear_constraint_lift_maximum(local_x, cl_degree, cd_degree, min_angle, 
     :return: the difference between the intended maximum of 3 and the actual cl curve
     """
     output = constraint_computation(min_angle, max_angle, cl_degree, cd_degree, "cl", local_x, "max")
-    return 5-output
+    return 5 - output
 
 
 def nonlinear_constraint_lift_decaying(local_x, cl_degree, cd_degree, min_angle, max_angle):
@@ -453,7 +480,7 @@ def nonlinear_constraint_lift_alpha0(local_x, cl_degree, cd_degree, min_angle, m
 
 
 def constraint_computation(min_angle, max_angle, cl_degree, cd_degree, cl_or_cd, local_x, min_or_max,
-                                   switch_slope=False):
+                           switch_slope=False):
     """
     Function to create the A matrix that will be used to defined the constraints by applying our knowledge about the
     cl and cd curves with respect to the angle of attack.
@@ -468,7 +495,7 @@ def constraint_computation(min_angle, max_angle, cl_degree, cd_degree, cl_or_cd,
     :return: the parameter that defines the constraint
     """
 
-    angles = np.radians(np.arange(min_angle, max_angle+1))
+    angles = np.radians(np.arange(min_angle, max_angle + 1))
     local_A = np.zeros((angles.shape[0], cl_degree + cd_degree + 2))
     if cl_or_cd == "cl":
         if switch_slope:
@@ -523,11 +550,14 @@ def compute_LS(LS_method, W_matrix, A, b):
         x = np.matmul(np.matmul(np.linalg.inv(np.matmul(ATS, A)), ATS), b)
     elif LS_method == "OLS":  # Ordinary Least Squares
         x = np.matmul(np.matmul(np.linalg.inv(np.matmul(A.T, A)), A.T), b)
+    else:
+        raise Exception("The provided Least Square method is not considered")
 
     return x
 
 
 # Plotters
+# %%
 def plot_chord_twist(chord, twist):
     """
     Two plots:
@@ -593,7 +623,7 @@ def plot_cla(x, A, b, aoa_storage, start_alpha, finish_alpha, degree_cla, degree
         """
         cd = 0
         for i in range(degree_cla + 1, degree_cla + degree_cda + 2):
-            exponent = i-(degree_cla + 1)
+            exponent = i - (degree_cla + 1)
             cd += alpha ** exponent * x[i]
         return cd
 
@@ -692,8 +722,8 @@ def plot_cla(x, A, b, aoa_storage, start_alpha, finish_alpha, degree_cla, degree
 
     # Validation plots to observe the whiteness of the residual
     n_shifts = error_T.shape[0] - 1
-    lst_T = np.ones(2*n_shifts-1)
-    lst_Q = np.ones(2*n_shifts-1)
+    lst_T = np.ones(2 * n_shifts - 1)
+    lst_Q = np.ones(2 * n_shifts - 1)
     lst_T_center = np.matmul(error_T.T, error_T)
     lst_Q_center = np.matmul(error_Q.T, error_Q)
     lst_T[n_shifts] = 1
@@ -701,14 +731,14 @@ def plot_cla(x, A, b, aoa_storage, start_alpha, finish_alpha, degree_cla, degree
     for i in range(1, n_shifts):
         value_T = np.matmul(error_T[:-i, :].T, error_T[i:, :])
         value_Q = np.matmul(error_Q[:-i, :].T, error_Q[i:, :])
-        lst_T[n_shifts-1+i] = value_T/lst_T_center
-        lst_T[n_shifts-1-i] = value_T/lst_T_center
-        lst_Q[n_shifts-1+i] = value_Q/lst_Q_center
-        lst_Q[n_shifts-1-i] = value_Q/lst_Q_center
+        lst_T[n_shifts - 1 + i] = value_T / lst_T_center
+        lst_T[n_shifts - 1 - i] = value_T / lst_T_center
+        lst_Q[n_shifts - 1 + i] = value_Q / lst_Q_center
+        lst_Q[n_shifts - 1 - i] = value_Q / lst_Q_center
 
     # Plot corresponding to the thrust
-    x_axis = list(range(-n_shifts+1, n_shifts))
-    conf = 1.96/np.sqrt(error_T.shape[0])
+    x_axis = list(range(-n_shifts + 1, n_shifts))
+    conf = 1.96 / np.sqrt(error_T.shape[0])
     plt.figure(figure_number)
     figure_number += 1
     plt.plot(x_axis, lst_T, 'b-')
@@ -841,3 +871,22 @@ def plot_coeffs_params_blade_contribution(LS_terms, b):
 
     fig.suptitle('Blade contribution to coefficient params')
     plt.show()
+
+
+def multi_figure_storage(filename, figs=None, dpi=200):
+    """
+    Function that creates a pdf with all the plots opened at the moment.
+    The only gotcha here is that all figures are rendered as vector (pdf) graphics. If you want your figure to utilize
+    raster graphics (i.e. if the files are too large as vectors), you could use the rasterized=True option when
+    plotting quantities with many points. In that case the dpi option that I included might be useful.
+    :param filename: name of the file where you want to save them, you need to include ".pdf"
+    :param figs: whether you want to save a specific group of figures, then you insert the fig object
+    :param dpi: the desired resolution
+    :return:
+    """
+    pp = PdfPages(filename)
+    if figs is None:
+        figs = [plt.figure(n) for n in plt.get_fignums()]
+    for fig in figs:
+        fig.savefig(pp, dpi=dpi, format='pdf')
+    pp.close()
