@@ -14,6 +14,7 @@ from math import radians
 from math import degrees
 from time import time
 from matplotlib.backends.backend_pdf import PdfPages
+from matplotlib.ticker import MultipleLocator, ScalarFormatter
 
 __author__ = "Jose Ignacio de Alvear Cardenas"
 __copyright__ = "Copyright 2022, Jose Ignacio de Alvear Cardenas"
@@ -399,8 +400,13 @@ def minimize_func(x, A, b):
     error = b - np.reshape(np.matmul(A, np.reshape(x, [-1, 1])), [-1, 1])
     error_thrust = error[::2]
     error_torque = error[1::2]
-    RMSE_thrust = np.sqrt(np.mean(np.power(error_thrust, 2))) / np.std(error_thrust)
-    RMSE_torque = np.sqrt(np.mean(np.power(error_torque, 2))) / np.std(error_torque)
+    RMSE_thrust = np.sqrt(np.mean(np.power(error_thrust, 2))) / np.std(b[::2])
+    RMSE_torque = np.sqrt(np.mean(np.power(error_torque, 2))) / np.std(b[1::2])
+    # RMSE_thrust = np.sqrt(np.mean(np.power(error_thrust, 2))) / np.std(error_thrust)
+    # RMSE_torque = np.sqrt(np.mean(np.power(error_torque, 2))) / np.std(error_torque)
+    # RMSE_thrust = np.sqrt(np.mean(np.power(error_thrust, 2))) / (np.max(b[::2]) - np.min(b[::2]))
+    # RMSE_torque = np.sqrt(np.mean(np.power(error_torque, 2))) / (np.max(b[1::2]) - np.min(b[1::2]))
+
     RMSE = (RMSE_thrust + RMSE_torque) / 2.
     # RMSE = np.sqrt(np.mean(np.power(error, 2))) / np.std(error)
     return RMSE
@@ -633,21 +639,51 @@ def plot_cla(x, A, b, aoa_storage, start_alpha, finish_alpha, degree_cla, degree
     cds = [cda_equation(radians(aoa)) for aoa in alphas]
 
     # Plot the cl-alpha curve
+    title = "Cl-alpha curve: Cl = "
+    for i in range(degree_cla + 1):
+        title += f'{np.round(x[i].item(),2)} $\\alpha^{i}$'
+        if i != degree_cla:
+            if x[i+1].item() > 0:
+                title += '+'
     plt.figure(figure_number)
     figure_number += 1
     plt.plot(alphas, cls, 'r-')
     plt.xlabel("Angle of attack [deg]")
     plt.ylabel("Lift coefficient [-]")
-    plt.title("Cl-alpha curve")
+    plt.title(title)
+    ax = plt.gca()
+    if (max(cls) - min(cls)) / 0.1 > 20:
+        y_discretisation = 0.5
+    elif (max(cls) - min(cls)) / 0.1 > 2:
+        y_discretisation = 0.1
+    else:
+        y_discretisation = 0.01
+    ax.yaxis.set_major_locator(MultipleLocator(y_discretisation))
+    ax.xaxis.set_major_locator(MultipleLocator(5))
     plt.grid(True)
 
     # Plot the cd-alpha curve
+    title = "Cd-alpha curve: Cd = "
+    for i in range(degree_cla + 1, degree_cla + degree_cda + 2):
+        title += f'{np.round(x[i].item(),2)} $\\alpha^{i-(degree_cla + 1)}$'
+        if i != degree_cla + degree_cda + 1:
+            if x[i+1].item() > 0:
+                title += '+'
     plt.figure(figure_number)
     figure_number += 1
     plt.plot(alphas, cds, 'r-')
     plt.xlabel("Angle of attack [deg]")
     plt.ylabel("Drag coefficient [-]")
-    plt.title("Cd-alpha curve")
+    plt.title(title)
+    ax = plt.gca()
+    if (max(cds) - min(cds)) / 0.1 > 20:
+        y_discretisation = 0.5
+    elif (max(cds) - min(cds)) / 0.1 > 2:
+        y_discretisation = 0.1
+    else:
+        y_discretisation = 0.01
+    ax.yaxis.set_major_locator(MultipleLocator(y_discretisation))
+    ax.xaxis.set_major_locator(MultipleLocator(5))
     plt.grid(True)
 
     # Compare the results predicted by multiplying A and x, with respect to the observations in b for the thrust
@@ -686,12 +722,12 @@ def plot_cla(x, A, b, aoa_storage, start_alpha, finish_alpha, degree_cla, degree
 
     # Computation of relative or normalized RMSE
     # Divide RMSE by difference between max and min of observed values
-    RMSE_T1 = np.sqrt(np.mean(np.power(error_T, 2))) / (np.max(error_T) - np.min(error_T))
-    RMSE_Q1 = np.sqrt(np.mean(np.power(error_Q, 2))) / (np.max(error_Q) - np.min(error_Q))
+    RMSE_T1 = np.sqrt(np.mean(np.power(error_T, 2))) / (np.max(b[::2]) - np.min(b[::2]))
+    RMSE_Q1 = np.sqrt(np.mean(np.power(error_Q, 2))) / (np.max(b[1::2]) - np.min(b[1::2]))
 
     # Divide RMSE by standard deviation of observed values
-    RMSE_T2 = np.sqrt(np.mean(np.power(error_T, 2))) / np.std(error_T)
-    RMSE_Q2 = np.sqrt(np.mean(np.power(error_Q, 2))) / np.std(error_Q)
+    RMSE_T2 = np.sqrt(np.mean(np.power(error_T, 2))) / np.std(b[::2])
+    RMSE_Q2 = np.sqrt(np.mean(np.power(error_Q, 2))) / np.std(b[1::2])
 
     # Plot of error for thrust
     text_T_RMSE = f'Diff RMSE = {np.round(RMSE_T1, 2)} and Std RMSE = {np.round(RMSE_T2, 2)}'
@@ -718,30 +754,45 @@ def plot_cla(x, A, b, aoa_storage, start_alpha, finish_alpha, degree_cla, degree
     plt.title("Approximation error torque")
     plt.grid(True)
     plt.legend()
-    plt.show()
 
-    # Validation plots to observe the whiteness of the residual
-    n_shifts = error_T.shape[0] - 1
-    lst_T = np.ones(2 * n_shifts - 1)
-    lst_Q = np.ones(2 * n_shifts - 1)
-    lst_T_center = np.matmul(error_T.T, error_T)
-    lst_Q_center = np.matmul(error_Q.T, error_Q)
-    lst_T[n_shifts] = 1
-    lst_Q[n_shifts] = 1
-    for i in range(1, n_shifts):
-        value_T = np.matmul(error_T[:-i, :].T, error_T[i:, :])
-        value_Q = np.matmul(error_Q[:-i, :].T, error_Q[i:, :])
-        lst_T[n_shifts - 1 + i] = value_T / lst_T_center
-        lst_T[n_shifts - 1 - i] = value_T / lst_T_center
-        lst_Q[n_shifts - 1 + i] = value_Q / lst_Q_center
-        lst_Q[n_shifts - 1 - i] = value_Q / lst_Q_center
+    ## Validation plots to observe the whiteness of the residual. This function was commented out since the acorr
+    ## function from matplotlib is able to do exactly the same
+    # n_shifts = error_T.shape[0] - 1
+    # lst_T = np.ones(2 * n_shifts - 1)
+    # lst_Q = np.ones(2 * n_shifts - 1)
+    # lst_T_center = np.matmul(error_T.T, error_T)
+    # lst_Q_center = np.matmul(error_Q.T, error_Q)
+    # lst_T[n_shifts] = 1
+    # lst_Q[n_shifts] = 1
+    # for i in range(1, n_shifts):
+    #     value_T = np.matmul(error_T[:-i, :].T, error_T[i:, :])
+    #     value_Q = np.matmul(error_Q[:-i, :].T, error_Q[i:, :])
+    #     lst_T[n_shifts - 1 + i] = value_T / lst_T_center
+    #     lst_T[n_shifts - 1 - i] = value_T / lst_T_center
+    #     lst_Q[n_shifts - 1 + i] = value_Q / lst_Q_center
+    #     lst_Q[n_shifts - 1 - i] = value_Q / lst_Q_center
 
-    # Plot corresponding to the thrust
-    x_axis = list(range(-n_shifts + 1, n_shifts))
+    ## Plot corresponding to the thrust
+    # x_axis = list(range(-n_shifts + 1, n_shifts))
+    # conf = 1.96 / np.sqrt(error_T.shape[0])
+    # plt.figure(figure_number)
+    # figure_number += 1
+    # plt.plot(x_axis, lst_T, 'b-')
+    # plt.axhline(y=conf, xmin=-error_T.shape[0], xmax=error_T.shape[0], color="red", linestyle="--")
+    # plt.axhline(y=-conf, xmin=-error_T.shape[0], xmax=error_T.shape[0], color="red", linestyle="--")
+    # plt.xlabel("Number of lags")
+    # plt.ylabel("Error autocorrelation")
+    # plt.title("Autocorrelation of model residual: Thrust")
+    # plt.grid(True)
+    # plt.legend()
+    # plt.show()
+
     conf = 1.96 / np.sqrt(error_T.shape[0])
     plt.figure(figure_number)
+    ax = plt.gca()
     figure_number += 1
-    plt.plot(x_axis, lst_T, 'b-')
+    ax.acorr(np.reshape(error_T, [-1, ]), maxlags=None, usevlines=False, normed=True, linestyle="-", marker='',
+             color="b")
     plt.axhline(y=conf, xmin=-error_T.shape[0], xmax=error_T.shape[0], color="red", linestyle="--")
     plt.axhline(y=-conf, xmin=-error_T.shape[0], xmax=error_T.shape[0], color="red", linestyle="--")
     plt.xlabel("Number of lags")
@@ -749,12 +800,25 @@ def plot_cla(x, A, b, aoa_storage, start_alpha, finish_alpha, degree_cla, degree
     plt.title("Autocorrelation of model residual: Thrust")
     plt.grid(True)
     plt.legend()
-    plt.show()
 
-    # Plot corresponding to the torque
+    ## Plot corresponding to the torque
+    # plt.figure(figure_number)
+    # figure_number += 1
+    # plt.plot(x_axis, lst_Q, 'b-')
+    # plt.axhline(y=conf, xmin=-error_Q.shape[0], xmax=error_Q.shape[0], color="red", linestyle="--")
+    # plt.axhline(y=-conf, xmin=-error_Q.shape[0], xmax=error_Q.shape[0], color="red", linestyle="--")
+    # plt.xlabel("Number of lags")
+    # plt.ylabel("Error autocorrelation")
+    # plt.title("Autocorrelation of model residual: Torque")
+    # plt.grid(True)
+    # plt.legend()
+    # plt.show()
+
     plt.figure(figure_number)
+    ax = plt.gca()
     figure_number += 1
-    plt.plot(x_axis, lst_Q, 'b-')
+    ax.acorr(np.reshape(error_Q, [-1, ]), maxlags=None, usevlines=False, normed=True, linestyle="-", marker='',
+             color="blue")
     plt.axhline(y=conf, xmin=-error_Q.shape[0], xmax=error_Q.shape[0], color="red", linestyle="--")
     plt.axhline(y=-conf, xmin=-error_Q.shape[0], xmax=error_Q.shape[0], color="red", linestyle="--")
     plt.xlabel("Number of lags")
@@ -770,17 +834,19 @@ def plot_cla(x, A, b, aoa_storage, start_alpha, finish_alpha, degree_cla, degree
     n_aoa = len(aoa_storage[0])
     flag = True
     while flag:
-        user_input = input(f'Out of {n_blade_sections} blade sections, which ones would you like to plot? '
-                           f'Please give the start and end sections separated by a comma.')
-
-        # If the user uses the letter s, it means that it wants to stop without plotting.
-        if user_input == "s":
-            flag = False
-            continue
-
-        # Check that feasible blade sections have been given
-        user_input = list(map(int, user_input.split(',')))
-        start_section, end_section = user_input
+        # user_input = input(f'Out of {n_blade_sections} blade sections, which ones would you like to plot? '
+        #                    f'Please give the start and end sections separated by a comma.')
+        #
+        # # If the user uses the letter s, it means that it wants to stop without plotting.
+        # if user_input == "s":
+        #     flag = False
+        #     continue
+        #
+        # # Check that feasible blade sections have been given
+        # user_input = list(map(int, user_input.split(',')))
+        # start_section, end_section = user_input
+        start_section, end_section = [0, n_blade_sections-1]
+        flag = False
         if start_section < 0 or end_section >= n_blade_sections:
             print("Those blade section indices can not be applied")
             continue
@@ -793,10 +859,87 @@ def plot_cla(x, A, b, aoa_storage, start_alpha, finish_alpha, degree_cla, degree
             aoa_vectors[:, counter] = np.reshape(np.array(aoa_storage[i]), [-1, ])
 
         plt.figure(figure_number)
+        ax = plt.gca()
         figure_number += 1
-        plt.boxplot(np.degrees(aoa_vectors))
-        plt.grid(True)
+        plt.boxplot(np.degrees(aoa_vectors), showfliers=False, patch_artist=True)
+        ax.xaxis.set_major_locator(MultipleLocator(5))
+        ax.xaxis.set_major_formatter(ScalarFormatter())
+        plt.ylabel(r"$\alpha$ [deg]")
+        plt.xlabel("Blade section number [-]")
+        plt.grid(True, alpha=0.5)
         plt.show()
+
+
+def plot_inputs(inputs_dict):
+    """
+    Function to plot the inputs used for the data point generation
+    :param inputs_dict: dictionary with the value of the inputs used
+    :return:
+    """
+    global figure_number
+    inputs = inputs_dict.keys()
+    for key in inputs:
+        if key != "ylabel" and key != "title":
+            if type(inputs_dict[key][0]) != float:
+                fig = plt.figure(figure_number)
+                figure_number += 1
+                axes = fig.subplots(3, 1, gridspec_kw={'wspace': 0.5,'hspace': 0.5})
+                axis_names = ["x", "y", "z"]
+                counter = 0
+                for ax in axes:
+                    ax.plot(np.reshape(np.array(inputs_dict[key])[:, counter, :], [-1,]), "bo")
+                    ax.set_xlabel("Data point number [-]")
+                    ylabel = f'{inputs_dict["ylabel"][0][key]} for {axis_names[counter]}-axis'
+                    ax.set_ylabel(ylabel)
+                    ax.grid(True)
+                    counter += 1
+                fig.suptitle(inputs_dict["title"][0][key])
+            else:
+                plt.figure(figure_number)
+                figure_number += 1
+                plt.plot(inputs_dict[key], "bo")
+                plt.xlabel("Data point number [-]")
+                plt.ylabel(inputs_dict["ylabel"][0][key])
+                plt.title(inputs_dict["title"][0][key])
+                plt.grid(True)
+                plt.show()
+
+
+def plot_coeffs_map(coeffs_grid, degree_cla, degree_cda):
+    """
+    Function to plot the coefficients for different blade discretisations and number of data points
+    :param coeffs_grid: identified cl and cd coefficients
+    :param degree_cla: degree of cl polynomial
+    :param degree_cda: degree of cd polynomial
+    :return:
+    """
+    global figure_number
+    from mpl_toolkits.axes_grid1 import make_axes_locatable
+    def coeff_plotter(coeffs_grid_local, degree, coeff_type):
+        global figure_number
+        fig = plt.figure(figure_number)
+        figure_number += 1
+        axes = fig.subplots(degree + 1, 1, gridspec_kw={'wspace': 0.5, 'hspace': 0.5})
+        counter = 0
+        for ax in axes:
+            im = ax.pcolormesh(coeffs_grid_local[:, :, counter], cmap="viridis")
+            ax.set_xlabel("Number of samples [-]")
+            ax.set_ylabel("Number of blade sections [-]")
+            ax.grid(True)
+            divider = make_axes_locatable(ax)
+            cax = divider.append_axes('right', size='5%', pad=0.05)
+            fig.colorbar(im, cax=cax, orientation='vertical')
+            counter += 1
+        fig.suptitle(f"Value of the {coeff_type} coefficients wrt. the number of samples and blade sections")
+
+    # Plot the cl coefficients
+    coeff_plotter(coeffs_grid[:, :, :degree_cla+1], degree_cla, "lift")
+
+    # Plot the cd coeffs
+    coeff_plotter(coeffs_grid[:, :, degree_cla+1:], degree_cda, "drag")
+
+
+
 
 
 def plot_FM(t, rotation_angle, F, M):
@@ -873,6 +1016,7 @@ def plot_coeffs_params_blade_contribution(LS_terms, b):
     plt.show()
 
 
+# multi_figure_storage("Saved_figures/500_dp_100_bs.pdf", figs=None, dpi=200)
 def multi_figure_storage(filename, figs=None, dpi=200):
     """
     Function that creates a pdf with all the plots opened at the moment.

@@ -16,7 +16,13 @@ __status__ = "Development"
 
 # Modules to import
 import numpy as np
+import matplotlib as mpl
 
+# Matplotlib settings
+mpl.rcParams['pdf.fonttype'] = 42
+mpl.rcParams['ps.fonttype'] = 42
+mpl.rcParams['font.family'] = 'Arial'
+mpl.rcParams['grid.alpha'] = 0.5
 
 # Propeller information
 propeller_mass_g = 5.07                 # [g] measured 5.07
@@ -42,14 +48,14 @@ length_trapezoids_rt_lst = [first_segment_length, second_segment_length]  # list
 percentage_broken_blade_length = 20   # [%]
 angle_first_blade = 0                 # [deg] angle of the first blade with respect to the propeller coord. frame
 state_blades = [1, 1, 1]              # switches [-]: 1 means that it is healthy
-n_blade_segment = 50                 # [-] number of sections in which a single blade is divided
-number_samples = 500                 # [-] number of data points for the model identification
+n_blade_segment_lst = list(np.arange(50, 650, 50))               # [-] number of sections in which a single blade is divided
+number_samples_lst = list(np.arange(500, 32500, 500))                 # [-] number of data points for the model identification
 degree_cla = 2                        # [-] degree of the cl alpha curve polynomial
 degree_cda = 2                        # [-] degree of the cd alpha curve polynomial
 start_cla_plot = -10                  # [deg] initial alpha value to plot of the cl and cd curves
 finish_cla_plot = 30                  # [deg] last alpha value to plot of the cl and cd curves
-min_w = -2                            # [m/s] minimum vertical velocity considered
-max_w = -0.5                          # [m/s] maximum vertical velocity considered
+min_w = -2.5                            # [m/s] minimum vertical velocity considered -2
+max_w = -0.5                         # [m/s] maximum vertical velocity considered -0.5
 va = 3                                # [m/s] airspeed used for all scenarios
 coefficients_identification = True    # Whether the coefficients need to be identified
 activate_params_blade_contribution_plotting = False  # Plot that shows how each blade section contributes to the coeffs

@@ -20,7 +20,7 @@ from scipy.optimize import minimize
 
 from Blade import Blade
 from helper_func import compute_P52, compute_beta, compute_Fn, compute_psi, plot_cla, \
-    plot_coeffs_params_blade_contribution, iteration_printer, optimize
+    plot_coeffs_params_blade_contribution, iteration_printer, optimize, multi_figure_storage, plot_inputs
 from aero_data import *
 
 __author__ = "Jose Ignacio de Alvear Cardenas"
@@ -258,9 +258,10 @@ class Propeller:
         pqr = np.array([[0], [0], [0]])
         w = random.uniform(min_w, max_w)
         sign = 1 if random.random() < 0.5 else -1
-        u = sign * np.sqrt(va ** 2 - w ** 2)
+        # va_local = random.uniform(max(abs(w), 2), va)  # new
+        u = sign * np.sqrt(va ** 2 - w ** 2)  # new
         body_velocity = np.array([[u], [0], [w]])
-        omega = random.uniform(300, 1256)  # [rad/s]
+        omega = random.uniform(300, 1256+1)  # [rad/s]
         self.rotation_angle = random.uniform(0, 2 * np.pi)
 
         return body_velocity, pqr, omega
@@ -299,18 +300,32 @@ class Propeller:
         """
         A = np.zeros((number_samples * 2, degree_cla + degree_cda + 2))
         b = np.zeros((number_samples * 2, 1))
-        rot_angles = np.linspace(0, 2 * np.pi, n_rot_steps)
+        rot_angles = np.linspace(0, 2 * np.pi, n_rot_steps+1)[:-1]
         aoa_storage = defaultdict(list)
         current_time = time()
+        input_storage = defaultdict(list)
+        input_storage['title'].append({'body_velocity': "Linear body velocity inputs",
+                                       'pqr': "Angular body velocity inputs",
+                                       'omega': "Propeller rotational velocity inputs"})
+        input_storage['ylabel'].append({'body_velocity': "Linear body velocity [m/s]",
+                                        'pqr': "Angular body velocity [rad/s]",
+                                        'omega': "Propeller rotational velocity [rad/s]"})
         for i in range(number_samples):
             # Print the time that has passed with respect to the last iteration
             current_time = iteration_printer(i, current_time)
 
             # Compute the current scenario conditions
-            body_velocity, pqr, omega = self.generate_ls_dp_input(min_w, max_w, va)
+            T = -1
+            while T < 0:
+                body_velocity, pqr, omega = self.generate_ls_dp_input(min_w, max_w, va)
 
-            # Compute the term corresponding to the b component of LS
-            T, N = self.compute_lift_torque_matlab(body_velocity, pqr, omega, rho)
+                # Compute the term corresponding to the b component of LS
+                T, N = self.compute_lift_torque_matlab(body_velocity, pqr, omega, rho)
+
+            # Store the information
+            input_storage['body_velocity'].append(body_velocity)
+            input_storage['pqr'].append(pqr)
+            input_storage['omega'].append(omega)
             b[2 * i, 0] = T
             b[2 * i + 1, 0] = N
 
@@ -345,6 +360,7 @@ class Propeller:
         # Plot the resulting cla and cda curves
         if activate_plotting:
             plot_cla(x, A, b, aoa_storage, start_plot, finish_plot, degree_cla, degree_cda)
+            plot_inputs(input_storage)
         return x, A, b
 
     def compute_induced_inflow(self, T, rho, omega):
