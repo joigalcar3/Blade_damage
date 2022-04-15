@@ -9,6 +9,16 @@ Assumptions:
 - The Bebop 2 blades are simplified as two trapezoids with parallel sides connected by the long parallel side
 - The induced velocity is computed with the simplified linear induced inflow
 - The nonlinear effects between (damaged) blades are not considered
+- The data used for the cl cd identification is obtained from the Matlab model that provides the propeller thrust
+
+Recommendations:
+- Creation of a black-box model that provides the highly-nonlinear lift and drag contributions of each blade section
+that are not encapsulated in the BEM model. For instance, the interaction between propellers and the interaction
+between the propeller and the body. Work similar to efforts in CFD to accelerate the run of CFD with a simple easy to
+compute model and a nonlinear black-box model on top. It is true that there is already a black-box model for the whole
+propeller, but this would be interesting for the failure scenarios in which blade section information is required.
+In this black-box model for nonlinearities, it would be interesting to also train with data from broken propellers. Then
+an input to the black-box model would be the percentage of broken blade in the propeller.
 """
 
 # TODO: create tests for classes and methods in helper_func_unittest.py

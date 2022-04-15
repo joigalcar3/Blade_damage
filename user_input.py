@@ -42,8 +42,8 @@ length_trapezoids_rt_lst = [first_segment_length, second_segment_length]  # list
 percentage_broken_blade_length = 20   # [%]
 angle_first_blade = 0                 # [deg] angle of the first blade with respect to the propeller coord. frame
 state_blades = [1, 1, 1]              # switches [-]: 1 means that it is healthy
-n_blade_segment = 100                 # [-] number of sections in which a single blade is divided
-number_samples = 1000                 # [-] number of data points for the model identification
+n_blade_segment = 50                 # [-] number of sections in which a single blade is divided
+number_samples = 500                 # [-] number of data points for the model identification
 degree_cla = 2                        # [-] degree of the cl alpha curve polynomial
 degree_cda = 2                        # [-] degree of the cd alpha curve polynomial
 start_cla_plot = -10                  # [deg] initial alpha value to plot of the cl and cd curves
@@ -57,7 +57,7 @@ LS_method = "GLS"       # the type of least squares used for the identification 
 n_rot_steps = 10        # The number of propeller positions used for taking the average
 switch_avg_rot = True   # Switch to activate whether the instantaneous propeller state is used or the rotation average
 optimization_method = 'min'   # Whether the opt. method should be Least Squares ("LS") or a scipy.minimization ("min")
-min_method = "trust-constr"   # Nonlinear optimization method used to minimize Ax-b: Nelder-Mead, COBYLA
+min_method = "trust-constr"   # Nonlinear optimization method used to minimize Ax-b: SLSQP, COBYLA
 switch_constrains = True    # Whether the optimization should be constrained. Only for COBYLA, SLSQP and trust-constr
 
 # Only for COBYLA, SLSQP and trust-constr accept constraints. Equality constraint means that the constraint function
