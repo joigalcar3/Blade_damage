@@ -131,3 +131,5 @@ dmypy.json
 .idea/
 
 Saved_figures/
+
+Saved_data/

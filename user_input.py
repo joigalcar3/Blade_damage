@@ -48,8 +48,8 @@ length_trapezoids_rt_lst = [first_segment_length, second_segment_length]  # list
 percentage_broken_blade_length = 20   # [%]
 angle_first_blade = 0                 # [deg] angle of the first blade with respect to the propeller coord. frame
 state_blades = [1, 1, 1]              # switches [-]: 1 means that it is healthy
-n_blade_segment_lst = list(np.arange(50, 650, 50))               # [-] number of sections in which a single blade is divided
-number_samples_lst = list(np.arange(500, 32500, 500))                 # [-] number of data points for the model identification
+n_blade_segment_lst = list(np.arange(50, 500, 50))               # [-] number of sections in which a single blade is divided
+number_samples_lst = list(np.arange(101000, 201000, 5000))                 # [-] number of data points for the model identification
 degree_cla = 2                        # [-] degree of the cl alpha curve polynomial
 degree_cda = 2                        # [-] degree of the cd alpha curve polynomial
 start_cla_plot = -10                  # [deg] initial alpha value to plot of the cl and cd curves
@@ -57,14 +57,15 @@ finish_cla_plot = 30                  # [deg] last alpha value to plot of the cl
 min_w = -2.5                            # [m/s] minimum vertical velocity considered -2
 max_w = -0.5                         # [m/s] maximum vertical velocity considered -0.5
 va = 3                                # [m/s] airspeed used for all scenarios
-coefficients_identification = True    # Whether the coefficients need to be identified
-activate_params_blade_contribution_plotting = False  # Plot that shows how each blade section contributes to the coeffs
 LS_method = "GLS"       # the type of least squares used for the identification of the drag and lift coefficients
 n_rot_steps = 10        # The number of propeller positions used for taking the average
-switch_avg_rot = True   # Switch to activate whether the instantaneous propeller state is used or the rotation average
 optimization_method = 'min'   # Whether the opt. method should be Least Squares ("LS") or a scipy.minimization ("min")
-min_method = "trust-constr"   # Nonlinear optimization method used to minimize Ax-b: SLSQP, COBYLA
-switch_constrains = True    # Whether the optimization should be constrained. Only for COBYLA, SLSQP and trust-constr
+min_method = "SLSQP"   # Nonlinear optimization method used to minimize Ax-b: SLSQP, COBYLA
+coefficients_identification = True    # Whether the coefficients need to be identified
+activate_params_blade_contribution_plotting = False  # Plot that shows how each blade section contributes to the coeffs
+switch_avg_rot = True   # Switch to activate whether the instantaneous propeller state is used or the rotation average
+switch_constraints = True    # Whether the optimization should be constrained. Only for COBYLA, SLSQP and trust-constr
+switch_coeffs_grid_plot = True if len(n_blade_segment_lst)+len(number_samples_lst) > 2 else False  # Whether to plot cl and cd coeffs wrt the #blade sections and #data points
 
 # Only for COBYLA, SLSQP and trust-constr accept constraints. Equality constraint means that the constraint function
 # result is to be zero whereas inequality means that it is to be non-negative.

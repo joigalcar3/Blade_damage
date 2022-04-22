@@ -12,9 +12,12 @@ from scipy.optimize import minimize
 import matplotlib.pyplot as plt
 from math import radians
 from math import degrees
-from time import time
+import time
 from matplotlib.backends.backend_pdf import PdfPages
 from matplotlib.ticker import MultipleLocator, ScalarFormatter
+from mpl_toolkits.axes_grid1 import make_axes_locatable
+import matplotlib
+matplotlib.use('Agg')
 
 __author__ = "Jose Ignacio de Alvear Cardenas"
 __copyright__ = "Copyright 2022, Jose Ignacio de Alvear Cardenas"
@@ -26,7 +29,7 @@ __email__ = "j.i.dealvearcardenas@student.tudelft.nl"
 __status__ = "Development"
 
 # General global params
-start_time = time()
+start_time = time.time()
 figure_number = 1
 
 
@@ -330,13 +333,13 @@ def iteration_printer(i, current_time):
     :return: the time when the last iteration was printed
     """
     if i % 5 == 0:
-        new_time = time()
+        new_time = time.time()
         elapsed_time = new_time - current_time
         current_time = new_time
         print(f'Iteration {i}. Elapsed time: {elapsed_time}')
 
     if i % 10 == 0:
-        elapsed_time = time() - start_time
+        elapsed_time = time.time() - start_time
         print(f'Elapsed time since the beginning of the identification: {elapsed_time}')
 
     return current_time
@@ -351,7 +354,7 @@ def optimize(A, b, optimization_method, **kwargs):
     :param b: the thrust and torque values from the Matlab model
     :param optimization_method: method used for the optimization
     :param kwargs: variable that encapsulates in dictionary format all the variables used in the different optimizations
-    It contains the LS_method, W_matrix, min_method, switch_constrains, cl_degree, cd_degree, min_angle, max_angle.
+    It contains the LS_method, W_matrix, min_method, switch_constraints, degree_cla, degree_cda, min_angle, max_angle.
     :return: the cl and cd coefficients
     """
 
@@ -369,9 +372,9 @@ def optimize(A, b, optimization_method, **kwargs):
         min_method = kwargs["min_method"]
 
         # Creation of the constraints and optimization of the least squares equation
-        switch_constrains = kwargs["switch_constrains"]
-        if switch_constrains:
-            arguments_constraint = (kwargs["cl_degree"], kwargs["cd_degree"], kwargs["min_angle"], kwargs["max_angle"])
+        switch_constraints = kwargs["switch_constraints"]
+        if switch_constraints:
+            arguments_constraint = (kwargs["degree_cla"], kwargs["degree_cda"], kwargs["min_angle"], kwargs["max_angle"])
             # noinspection SpellCheckingInspection
             constraints = ({"type": "ineq", "fun": nonlinear_constraint_drag_minimum, "args": arguments_constraint},
                            {"type": "ineq", "fun": nonlinear_constraint_lift_maximum, "args": arguments_constraint},
@@ -380,7 +383,7 @@ def optimize(A, b, optimization_method, **kwargs):
                             "args": arguments_constraint},
                            {"type": "ineq", "fun": nonlinear_constraint_lift_alpha0, "args": arguments_constraint})
             x = minimize(minimize_func, x0, args=(A, b), method=min_method, constraints=constraints,
-                         options={"disp": True}).x
+                         options={"disp": True, "maxiter": 2000}).x
         else:
             x = minimize(minimize_func, x0, args=(A, b), method=min_method).x
     else:
@@ -402,8 +405,6 @@ def minimize_func(x, A, b):
     error_torque = error[1::2]
     RMSE_thrust = np.sqrt(np.mean(np.power(error_thrust, 2))) / np.std(b[::2])
     RMSE_torque = np.sqrt(np.mean(np.power(error_torque, 2))) / np.std(b[1::2])
-    # RMSE_thrust = np.sqrt(np.mean(np.power(error_thrust, 2))) / np.std(error_thrust)
-    # RMSE_torque = np.sqrt(np.mean(np.power(error_torque, 2))) / np.std(error_torque)
     # RMSE_thrust = np.sqrt(np.mean(np.power(error_thrust, 2))) / (np.max(b[::2]) - np.min(b[::2]))
     # RMSE_torque = np.sqrt(np.mean(np.power(error_torque, 2))) / (np.max(b[1::2]) - np.min(b[1::2]))
 
@@ -412,88 +413,88 @@ def minimize_func(x, A, b):
     return RMSE
 
 
-def nonlinear_constraint_drag_minimum(local_x, cl_degree, cd_degree, min_angle, max_angle):
+def nonlinear_constraint_drag_minimum(local_x, degree_cla, degree_cda, min_angle, max_angle):
     """
     Constraint to avoid that the drag value goes negative range
     :param local_x: value of the cl and cd coefficients
-    :param cl_degree: degree of the lift coefficient equation
-    :param cd_degree: degree of the drag coefficient equation
+    :param degree_cla: degree of the lift coefficient equation
+    :param degree_cda: degree of the drag coefficient equation
     :param min_angle: min angle of attack to consider for the constraint
     :param max_angle: max angle of attack to consider for the constraint
     :return: the minimum value in the cd curve
     """
-    output = constraint_computation(-max_angle, max_angle, cl_degree, cd_degree, "cd", local_x, "min")
+    output = constraint_computation(-max_angle, max_angle, degree_cla, degree_cda, "cd", local_x, "min")
     return output
 
 
-def nonlinear_constraint_lift_maximum(local_x, cl_degree, cd_degree, min_angle, max_angle):
+def nonlinear_constraint_lift_maximum(local_x, degree_cla, degree_cda, min_angle, max_angle):
     """
     Constraint to avoid that the lift value to obtain a very large value, namely higher than 3
     :param local_x: value of the cl and cd coefficients
-    :param cl_degree: degree of the lift coefficient equation
-    :param cd_degree: degree of the drag coefficient equation
+    :param degree_cla: degree of the lift coefficient equation
+    :param degree_cda: degree of the drag coefficient equation
     :param min_angle: min angle of attack to consider for the constraint
     :param max_angle: max angle of attack to consider for the constraint
     :return: the difference between the intended maximum of 3 and the actual cl curve
     """
-    output = constraint_computation(min_angle, max_angle, cl_degree, cd_degree, "cl", local_x, "max")
+    output = constraint_computation(-max_angle, max_angle, degree_cla, degree_cda, "cl", local_x, "max")
     return 5 - output
 
 
-def nonlinear_constraint_lift_decaying(local_x, cl_degree, cd_degree, min_angle, max_angle):
+def nonlinear_constraint_lift_decaying(local_x, degree_cla, degree_cda, min_angle, max_angle):
     """
     Constraint to force the lift to decay with high angles of attack. dCl/da = x1 + 2*a*x2
     :param local_x: value of the cl and cd coefficients
-    :param cl_degree: degree of the lift coefficient equation
-    :param cd_degree: degree of the drag coefficient equation
+    :param degree_cla: degree of the lift coefficient equation
+    :param degree_cda: degree of the drag coefficient equation
     :param min_angle: min angle of attack to consider for the constraint
     :param max_angle: max angle of attack to consider for the constraint
     :return: the difference between the intended maximum of 3 and the actual cl curve
     """
-    output = -constraint_computation(25, max_angle, cl_degree, cd_degree, "cl", local_x, "max", True)
+    output = -constraint_computation(25, max_angle, degree_cla, degree_cda, "cl", local_x, "max", True)
     return output
 
 
-def nonlinear_constraint_lift_positive_slope(local_x, cl_degree, cd_degree, min_angle, max_angle):
+def nonlinear_constraint_lift_positive_slope(local_x, degree_cla, degree_cda, min_angle, max_angle):
     """
     Constraint to force the lift to increase with the angle of attack for the range of 0-7 degrees
     :param local_x: value of the cl and cd coefficients
-    :param cl_degree: degree of the lift coefficient equation
-    :param cd_degree: degree of the drag coefficient equation
+    :param degree_cla: degree of the lift coefficient equation
+    :param degree_cda: degree of the drag coefficient equation
     :param min_angle: min angle of attack to consider for the constraint
     :param max_angle: max angle of attack to consider for the constraint
     :return: the difference between the intended maximum of 3 and the actual cl curve
     """
-    output = constraint_computation(0, 7, cl_degree, cd_degree, "cl", local_x, "min", True)
+    output = constraint_computation(0, 7, degree_cla, degree_cda, "cl", local_x, "min", True)
     return output
 
 
-def nonlinear_constraint_lift_alpha0(local_x, cl_degree, cd_degree, min_angle, max_angle):
+def nonlinear_constraint_lift_alpha0(local_x, degree_cla, degree_cda, min_angle, max_angle):
     """
     Constraint to force the lift curve to cross the x-axis within the range [-10,10]. Since the airfoil is not
     excessively cambered, the angle of attack of zero lift would most likely be within this range. Usually it is between
     -3.5 and -1.5 when it is not symmetrical
     (http://www.aerodynamics4students.com/aircraft-performance/lift-and-lift-coefficient.php)
     :param local_x: value of the cl and cd coefficients
-    :param cl_degree: degree of the lift coefficient equation
-    :param cd_degree: degree of the drag coefficient equation
+    :param degree_cla: degree of the lift coefficient equation
+    :param degree_cda: degree of the drag coefficient equation
     :param min_angle: min angle of attack to consider for the constraint
     :param max_angle: max angle of attack to consider for the constraint
     :return: the difference between the intended maximum of 3 and the actual cl curve
     """
-    output = -constraint_computation(-10, 10, cl_degree, cd_degree, "cl", local_x, "min")
+    output = -constraint_computation(-10, 10, degree_cla, degree_cda, "cl", local_x, "min")
     return output
 
 
-def constraint_computation(min_angle, max_angle, cl_degree, cd_degree, cl_or_cd, local_x, min_or_max,
+def constraint_computation(min_angle, max_angle, degree_cla, degree_cda, cl_or_cd, local_x, min_or_max,
                            switch_slope=False):
     """
     Function to create the A matrix that will be used to defined the constraints by applying our knowledge about the
     cl and cd curves with respect to the angle of attack.
     :param min_angle: min angle of attack to consider for the constraint
     :param max_angle: max angle of attack to consider for the constraint
-    :param cl_degree: degree of the lift coefficient equation
-    :param cd_degree: degree of the drag coefficient equation
+    :param degree_cla: degree of the lift coefficient equation
+    :param degree_cda: degree of the drag coefficient equation
     :param cl_or_cd: whether we are talking about the cl or the cd alpha curves
     :param local_x: the local value of the cl and cd coefficients
     :param min_or_max: whether the minimum or maximum values should be considered
@@ -502,17 +503,17 @@ def constraint_computation(min_angle, max_angle, cl_degree, cd_degree, cl_or_cd,
     """
 
     angles = np.radians(np.arange(min_angle, max_angle + 1))
-    local_A = np.zeros((angles.shape[0], cl_degree + cd_degree + 2))
+    local_A = np.zeros((angles.shape[0], degree_cla + degree_cda + 2))
     if cl_or_cd == "cl":
         if switch_slope:
-            for i in range(1, cl_degree + 1):
+            for i in range(1, degree_cla + 1):
                 local_A[:, i] = i * np.power(angles, i - 1)
         else:
-            for i in range(cl_degree + 1):
+            for i in range(degree_cla + 1):
                 local_A[:, i] = np.power(angles, i)
     elif cl_or_cd == "cd":
-        for i in range(cd_degree + 1):
-            local_A[:, 1 + cl_degree + i] = np.power(angles, i)
+        for i in range(degree_cda + 1):
+            local_A[:, 1 + degree_cla + i] = np.power(angles, i)
     else:
         raise Exception("This type of value range for accessing the A matrix of the constraints is not considered.")
 
@@ -562,6 +563,76 @@ def compute_LS(LS_method, W_matrix, A, b):
     return x
 
 
+def compute_coeffs_grid_row(A, b, optimization_method, LS_method, W_matrix, degree_cla, degree_cda, min_angle,
+                            max_angle, min_method, switch_constraints, number_samples_lst, filename_func,
+                            activate_plotting=False, input_storage=None):
+    """
+    Function to compute the cl and cd coefficients for different number of data points but a constant number of blade
+    sections
+    :param A: the A matrix that contains the equation components as a function of the cl and cd coefficients
+    :param b: the thrust and torque values from the Matlab model
+    :param optimization_method: method used for the optimization
+    :param LS_method: Least Squares method used: OLS, WLS, GLS
+    :param W_matrix: the matrix used for WLS
+    :param degree_cla: the polynomial degree of the Cl-alpha curve
+    :param degree_cda: the degree of the polynomial that we want to use to approximate the Cd-a curve
+    :param min_angle: the angle at which plotting starts
+    :param max_angle: the angle at which plotting ends
+    :param min_method: the method used for the constrained minimization problem
+    :param switch_constraints: whether constraints should be used in the optimization
+    :param number_samples_lst: the list with the number of samples
+    :param filename_func: function for the creation of the filename name. A function is required since the number of
+    blade sections is not provided as input
+    :param activate_plotting: whether the plotting of the cla and inputs plots should be done
+    :param input_storage: the dictionary with all the input information for each data point
+    :return:
+    """
+    global figure_number
+
+    # Creating the row for the coefficients' grid
+    coeffs_grid_row = np.zeros((1, len(number_samples_lst), degree_cla+degree_cda+2))
+    input_storage_local = {'ylabel': input_storage['ylabel'], 'title': input_storage['title']}
+    for i, number_samples in enumerate(number_samples_lst):
+        # Retrieving the information concerning the first "number_samples" data points
+        A_local = A[:number_samples*2, :]
+        b_local = b[:number_samples*2, :]
+
+        # Carry out the optimization
+        x = optimize(A_local, b_local, optimization_method, LS_method=LS_method, W_matrix=W_matrix, degree_cla=degree_cla,
+                     degree_cda=degree_cda, min_angle=0, max_angle=max_angle,
+                     min_method=min_method, switch_constraints=switch_constraints)
+
+        # Add the optimised coefficients to the grid
+        coeffs_grid_row[0, i, :] = np.reshape(x, [-1, ])
+        if activate_plotting:
+            # Restart the numbering such that not an infinite number of plots are created causing failure messages such
+            # as "Fail to create pixmap with Tk_GetPixmap in TkImgPhotoInstanceSetSize"
+            if figure_number > 50:
+                figure_number = 1
+
+            # Slicing the input info with the right amount of samples
+            input_storage_local['body_velocity'] = input_storage['body_velocity'][:number_samples]
+            input_storage_local['pqr'] = input_storage['pqr'][:number_samples]
+            input_storage_local['omega'] = input_storage['omega'][:number_samples]
+
+            # Do the plotting
+            plot_cla(x, A_local, b_local, None, min_angle, max_angle, degree_cla, degree_cda)
+            plot_inputs(input_storage_local)
+
+            # Store the plots
+            filename = filename_func(number_samples)
+            multi_figure_storage(filename, figs=None, dpi=200)
+
+            # Clean the figures. plt.close("all") is not enough because the information of the axis is not deleted and
+            # remains in memory, so it has to be explicitly deleted
+            for fig in plt.get_fignums():
+                plt.figure(fig)
+                plt.clf()
+                plt.cla()
+            plt.close('all')
+    return coeffs_grid_row
+
+
 # Plotters
 # %%
 def plot_chord_twist(chord, twist):
@@ -583,7 +654,6 @@ def plot_chord_twist(chord, twist):
     plt.plot(x_chord, y_chord_1, 'r-')
     plt.plot(x_chord, y_chord_2, 'r-')
     plt.grid(True)
-    plt.show()
 
     x_twist = range(len(twist))
     y_twist = [degrees(i) for i in twist]
@@ -591,7 +661,6 @@ def plot_chord_twist(chord, twist):
     figure_number += 1
     plt.plot(x_twist, y_twist, 'r-')
     plt.grid(True)
-    plt.show()
 
 
 def plot_cla(x, A, b, aoa_storage, start_alpha, finish_alpha, degree_cla, degree_cda):
@@ -826,48 +895,47 @@ def plot_cla(x, A, b, aoa_storage, start_alpha, finish_alpha, degree_cla, degree
     plt.title("Autocorrelation of model residual: Torque")
     plt.grid(True)
     plt.legend()
-    plt.show()
 
     # Plot of the angles of attack seen by each of the selected blade sections. It is represented as a box plot such
     # that it can be seen the average angle of attack as well as the range of alphas seen by its section.
-    n_blade_sections = len(aoa_storage.keys())
-    n_aoa = len(aoa_storage[0])
-    flag = True
-    while flag:
-        # user_input = input(f'Out of {n_blade_sections} blade sections, which ones would you like to plot? '
-        #                    f'Please give the start and end sections separated by a comma.')
-        #
-        # # If the user uses the letter s, it means that it wants to stop without plotting.
-        # if user_input == "s":
-        #     flag = False
-        #     continue
-        #
-        # # Check that feasible blade sections have been given
-        # user_input = list(map(int, user_input.split(',')))
-        # start_section, end_section = user_input
-        start_section, end_section = [0, n_blade_sections-1]
-        flag = False
-        if start_section < 0 or end_section >= n_blade_sections:
-            print("Those blade section indices can not be applied")
-            continue
+    if aoa_storage != None:
+        n_blade_sections = len(aoa_storage.keys())
+        n_aoa = len(aoa_storage[0])
+        flag = True
+        while flag:
+            user_input = input(f'Out of {n_blade_sections} blade sections, which ones would you like to plot? '
+                               f'Please give the start and end sections separated by a comma.')
 
-        # Carry out the counting of the angle of attack seen by the blade sections
-        n_sections = end_section - start_section + 1
-        aoa_vectors = np.zeros((n_aoa, n_sections))
-        for i in range(start_section, end_section + 1):
-            counter = i - start_section
-            aoa_vectors[:, counter] = np.reshape(np.array(aoa_storage[i]), [-1, ])
+            # If the user uses the letter s, it means that it wants to stop without plotting.
+            if user_input == "s":
+                flag = False
+                continue
 
-        plt.figure(figure_number)
-        ax = plt.gca()
-        figure_number += 1
-        plt.boxplot(np.degrees(aoa_vectors), showfliers=False, patch_artist=True)
-        ax.xaxis.set_major_locator(MultipleLocator(5))
-        ax.xaxis.set_major_formatter(ScalarFormatter())
-        plt.ylabel(r"$\alpha$ [deg]")
-        plt.xlabel("Blade section number [-]")
-        plt.grid(True, alpha=0.5)
-        plt.show()
+            # Check that feasible blade sections have been given
+            user_input = list(map(int, user_input.split(',')))
+            start_section, end_section = user_input
+            start_section, end_section = [0, n_blade_sections-1]
+            flag = False
+            if start_section < 0 or end_section >= n_blade_sections:
+                print("Those blade section indices can not be applied")
+                continue
+
+            # Carry out the counting of the angle of attack seen by the blade sections
+            n_sections = end_section - start_section + 1
+            aoa_vectors = np.zeros((n_aoa, n_sections))
+            for i in range(start_section, end_section + 1):
+                counter = i - start_section
+                aoa_vectors[:, counter] = np.reshape(np.array(aoa_storage[i]), [-1, ])
+
+            plt.figure(figure_number)
+            ax = plt.gca()
+            figure_number += 1
+            plt.boxplot(np.degrees(aoa_vectors), showfliers=False, patch_artist=True)
+            ax.xaxis.set_major_locator(MultipleLocator(5))
+            ax.xaxis.set_major_formatter(ScalarFormatter())
+            plt.ylabel(r"$\alpha$ [deg]")
+            plt.xlabel("Blade section number [-]")
+            plt.grid(True, alpha=0.5)
 
 
 def plot_inputs(inputs_dict):
@@ -902,7 +970,7 @@ def plot_inputs(inputs_dict):
                 plt.ylabel(inputs_dict["ylabel"][0][key])
                 plt.title(inputs_dict["title"][0][key])
                 plt.grid(True)
-                plt.show()
+                # plt.show()
 
 
 def plot_coeffs_map(coeffs_grid, degree_cla, degree_cda):
@@ -914,7 +982,7 @@ def plot_coeffs_map(coeffs_grid, degree_cla, degree_cda):
     :return:
     """
     global figure_number
-    from mpl_toolkits.axes_grid1 import make_axes_locatable
+
     def coeff_plotter(coeffs_grid_local, degree, coeff_type):
         global figure_number
         fig = plt.figure(figure_number)
@@ -923,8 +991,8 @@ def plot_coeffs_map(coeffs_grid, degree_cla, degree_cda):
         counter = 0
         for ax in axes:
             im = ax.pcolormesh(coeffs_grid_local[:, :, counter], cmap="viridis")
-            ax.set_xlabel("Number of samples [-]")
-            ax.set_ylabel("Number of blade sections [-]")
+            ax.set_xlabel("q [-]")
+            ax.set_ylabel("$n_{bs}$ [-]")
             ax.grid(True)
             divider = make_axes_locatable(ax)
             cax = divider.append_axes('right', size='5%', pad=0.05)
@@ -937,9 +1005,6 @@ def plot_coeffs_map(coeffs_grid, degree_cla, degree_cda):
 
     # Plot the cd coeffs
     coeff_plotter(coeffs_grid[:, :, degree_cla+1:], degree_cda, "drag")
-
-
-
 
 
 def plot_FM(t, rotation_angle, F, M):
@@ -981,7 +1046,7 @@ def plot_FM(t, rotation_angle, F, M):
         ax_m.set_ylabel("Moment [Nm]")
         ax_m.grid(True)
         f_m.tight_layout()
-    plt.show()
+    # plt.show()
 
 
 def plot_coeffs_params_blade_contribution(LS_terms, b):
@@ -1013,7 +1078,7 @@ def plot_coeffs_params_blade_contribution(LS_terms, b):
         ax[i].grid(True)
 
     fig.suptitle('Blade contribution to coefficient params')
-    plt.show()
+    # plt.show()
 
 
 # multi_figure_storage("Saved_figures/500_dp_100_bs.pdf", figs=None, dpi=200)

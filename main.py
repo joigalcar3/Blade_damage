@@ -15,7 +15,6 @@ Assumptions:
 - The cross flow is ignored, along the span of the blade
 # TODO: try different solver
 # TODO: consider removing added code in the input generator
-# TODO: repair angle printing function
 
 Recommendations:
 - Creation of a black-box model that provides the highly-nonlinear lift and drag contributions of each blade section
@@ -33,7 +32,7 @@ an input to the black-box model would be the percentage of broken blade in the p
 from helper_func import *
 from user_input import *
 from Propeller import Propeller
-from helper_func import multi_figure_storage, plot_coeffs_map
+from helper_func import multi_figure_storage, plot_coeffs_map, compute_coeffs_grid_row
 import matplotlib.pyplot as plt
 
 __author__ = "Jose Ignacio de Alvear Cardenas"
@@ -86,30 +85,45 @@ print(T)
 # ----------------------------------------------------------------------------------------------------------------------
 # Compute the cl-alpha curve polynomial coefficients
 if coefficients_identification:
-    coeffs_grid = np.zeros((len(n_blade_segment_lst), len(number_samples_lst), degree_cla+degree_cda+2))
+    if switch_coeffs_grid_plot:
+        coeffs_grid = np.zeros((len(n_blade_segment_lst), len(number_samples_lst), degree_cla+degree_cda+2))
+        activate_plotting = False
+    else:
+        activate_plotting = True
     for i, n_blade_segment in enumerate(n_blade_segment_lst):
-        for j, number_samples in enumerate(number_samples_lst):
-            coeffs, A, b = propeller.compute_cla_coeffs(number_samples, n_blade_segment, degree_cla, degree_cda,
-                                                        min_w=min_w, max_w=max_w, va=va, rho=1.225,
-                                                        activate_plotting=True,
-                                                        activate_params_blade_contribution_plotting=
-                                                        activate_params_blade_contribution_plotting,
-                                                        LS_method=LS_method, start_plot=start_cla_plot,
-                                                        finish_plot=finish_cla_plot,
-                                                        switch_avg_rot=switch_avg_rot, n_rot_steps=n_rot_steps,
-                                                        optimization_method=optimization_method,
-                                                        min_method=min_method, switch_constrains=switch_constrains)
-            coeffs_grid[i, j, :] = np.reshape(coeffs, [-1, ])
-            filename = f'Saved_figures/{number_samples}_dp_{n_blade_segment}_bs_{va}_va_{min_method}.pdf'
-            multi_figure_storage(filename, figs=None, dpi=200)
-            plt.close('all')
-            cla_coeffs = coeffs[:degree_cla + 1, 0]
-            cda_coeffs = coeffs[degree_cla + 1:, 0]
-            print(cla_coeffs)
-            print(cda_coeffs)
-plot_coeffs_map(coeffs_grid, degree_cla, degree_cda)
-filename = f'Saved_figures/{n_blade_segment_lst[0]}_{n_blade_segment_lst[-1]}_dp_{n_blade_segment_lst[0]}_{n_blade_segment_lst[-1]}_bs_{va}_va_{min_method}.pdf'
-multi_figure_storage(filename, figs=None, dpi=200)
+        number_samples = number_samples_lst[-1]
+        coeffs, A, b, u = propeller.compute_cla_coeffs(number_samples, n_blade_segment, degree_cla, degree_cda,
+                                                       min_w=min_w, max_w=max_w, va=va, rho=1.225,
+                                                       activate_plotting=activate_plotting,
+                                                       activate_params_blade_contribution_plotting=
+                                                       activate_params_blade_contribution_plotting,
+                                                       LS_method=LS_method, start_plot=start_cla_plot,
+                                                       finish_plot=finish_cla_plot,
+                                                       switch_avg_rot=switch_avg_rot, n_rot_steps=n_rot_steps,
+                                                       optimization_method=optimization_method,
+                                                       min_method=min_method, switch_constraints=switch_constraints)
+        if switch_coeffs_grid_plot:
+            filename_func = lambda ns: f'Saved_figures/{ns}_dp_{n_blade_segment}_bs_{va}_va_{min_method}_mod.pdf'
+            coeffs_grid_row = compute_coeffs_grid_row(A=A, b=b, optimization_method=optimization_method,
+                                                      LS_method=LS_method, W_matrix=None, degree_cla=degree_cla,
+                                                      degree_cda=degree_cda, min_angle=start_cla_plot,
+                                                      max_angle=finish_cla_plot, min_method=min_method,
+                                                      switch_constraints=switch_constraints,
+                                                      number_samples_lst=number_samples_lst,
+                                                      filename_func=filename_func, activate_plotting=True,
+                                                      input_storage=u)
+            coeffs_grid[[i], :, :] = coeffs_grid_row
+            data_filename = f'Saved_data/{number_samples_lst[0]}_{number_samples_lst[-1]}_dp_{n_blade_segment_lst[0]}_{n_blade_segment_lst[-1]}_bs_{va}_va_{min_method}_mod__coeffs_storage.npy'
+            with open(data_filename, 'wb') as f:
+                np.save(f, coeffs_grid)
+        cla_coeffs = coeffs[:degree_cla + 1, 0]
+        cda_coeffs = coeffs[degree_cla + 1:, 0]
+        print(cla_coeffs)
+        print(cda_coeffs)
+    if switch_coeffs_grid_plot:
+        plot_coeffs_map(coeffs_grid, degree_cla, degree_cda)
+        figure_filename = f'Saved_figures/{number_samples_lst[0]}_{number_samples_lst[-1]}_dp_{n_blade_segment_lst[0]}_{n_blade_segment_lst[-1]}_bs_{va}_va_{min_method}_mod.pdf'
+        multi_figure_storage(figure_filename, figs=None, dpi=200)
 
 # ----------------------------------------------------------------------------------------------------------------------
 # Compute the thrust, thrust moment, x-y in plane force and torque
