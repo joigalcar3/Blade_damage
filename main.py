@@ -88,6 +88,8 @@ if coefficients_identification:
     if switch_coeffs_grid_plot:
         coeffs_grid = np.zeros((len(n_blade_segment_lst), len(number_samples_lst), degree_cla+degree_cda+2))
         activate_plotting = False
+        warm_starts = np.array([2.99924620e-01,  4.36666107e+00, -1.14852923e+01,  9.44150117e-03, -8.11386646e-01,
+                                1.54958599e+01])
     else:
         activate_plotting = True
     for i, n_blade_segment in enumerate(n_blade_segment_lst):
@@ -111,8 +113,9 @@ if coefficients_identification:
                                                       switch_constraints=switch_constraints,
                                                       number_samples_lst=number_samples_lst,
                                                       filename_func=filename_func, activate_plotting=True,
-                                                      input_storage=u)
+                                                      input_storage=u, warm_starts=warm_starts)
             coeffs_grid[[i], :, :] = coeffs_grid_row
+            warm_starts = coeffs_grid[i, -1, :]
             data_filename = f'Saved_data/{number_samples_lst[0]}_{number_samples_lst[-1]}_dp_{n_blade_segment_lst[0]}_{n_blade_segment_lst[-1]}_bs_{va}_va_{min_method}_mod__coeffs_storage.npy'
             with open(data_filename, 'wb') as f:
                 np.save(f, coeffs_grid)
@@ -131,14 +134,16 @@ if coefficients_identification:
 cla_coeffs = np.array([-4.65298061,   187.59293314, -1413.02494156,  3892.87107255, -4410.25625439,  1744.50538986])
 cda_coeffs = np.array([-1.66217226e+00, -6.65648057e+01,  7.26049638e+02, -1.84544413e+03, 1.06106349e+03,  4.11807861e+02])
 omega = 1256          # [rad/s]
-propeller_speed = np.array([[np.sqrt(24)], [0], [-1]])
+body_velocity = np.array([[np.sqrt(24)], [0], [-1]])
+pqr = np.array([[0], [0], [0]])
 
 # Computations
 T_remaining, T_damaged, M_remaining, M_damaged = propeller.compute_thrust_moment(n_blade_segment, omega,
-                                                                                 propeller_speed, cla_coeffs,
-                                                                                 cda_coeffs)
-Q_remaining, Q_damaged, F_remaining, F_damaged = propeller.compute_torque_force(n_blade_segment, omega, propeller_speed,
-                                                                                cla_coeffs, cda_coeffs)
+                                                                                 cla_coeffs, cda_coeffs, body_velocity,
+                                                                                 pqr, rho=1.225)
+Q_remaining, Q_damaged, F_remaining, F_damaged = propeller.compute_torque_force(n_blade_segment, omega,
+                                                                                cla_coeffs, cda_coeffs, body_velocity,
+                                                                                pqr, rho=1.225)
 print(T_remaining, T_damaged, M_remaining, M_damaged)
 print(Q_remaining, Q_damaged, F_remaining, F_damaged)
 
@@ -149,6 +154,8 @@ propeller.set_rotation_angle(0)
 cla_coeffs = np.array([-5.89,   251.29, -1919.48,  5298.43, -5990.51,  2364.58])
 cda_coeffs = np.array([-1.39, -119.59,  1348.14, -4142.33, 4331.41,  -1157.51])
 omega_local = 500       # [rad/s]
+body_velocity = np.array([[np.sqrt(24)], [0], [-1]])
+pqr = np.array([[0], [0], [0]])
 time = 1
 dt = 0.001
 
@@ -171,11 +178,11 @@ for i in range(n_points):
 
     # Computation of moments and forces derived from the loss in an aerodynamic surface
     T_remaining, T_damaged, M_remaining, M_damaged = propeller.compute_thrust_moment(n_blade_segment, omega_local,
-                                                                                     propeller_speed, cla_coeffs,
-                                                                                     cda_coeffs)
+                                                                                     cla_coeffs, cda_coeffs,
+                                                                                     body_velocity, pqr, rho=1.225)
     Q_remaining, Q_damaged, F_remaining, F_damaged = propeller.compute_torque_force(n_blade_segment, omega_local,
-                                                                                    propeller_speed, cla_coeffs,
-                                                                                    cda_coeffs)
+                                                                                    cla_coeffs, cda_coeffs,
+                                                                                    body_velocity, pqr, rho=1.225)
     F[2, 0] -= T_damaged
     M -= M_damaged.T
     M[2, 0] -= Q_damaged

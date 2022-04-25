@@ -41,7 +41,7 @@ class BladeSection:
         self.S = self.c * self.dr
         self.stall = False
 
-    def compute_thrust_moment(self, omega, rotor_speed, position_rotor, cla_coeffs, cda_coeffs):
+    def compute_thrust_moment(self, omega, rotor_speed, position_rotor, cla_coeffs, cda_coeffs, inflow_data):
         """
         Method that computes the thrust produced by the blade section and its corresponding moment about the center of
         the propeller caused by the thrust force
@@ -51,10 +51,13 @@ class BladeSection:
         is necessary in order to understand how much of the air velocity is perpendicular to the blade [rad]
         :param cla_coeffs: list of coefficients used for the computation of the cl given the angle of attack
         :param cda_coeffs: list of coefficients used for the computation of the cd given the angle of attack
+        :param inflow_data:data regarding the inflow field, namely the uniform induced inflow field, induced inflow
+        velocity and a lambda function that computes the linear induced field depending on the blade element distance
+        from the hub and angle with respect to the inflow.
         :return:
         """
         # Compute parameters
-        Vl, aoa = self.compute_LS_term_params(omega, position_rotor, rotor_speed)
+        Vl, aoa = self.compute_LS_term_params(omega, position_rotor, rotor_speed, inflow_data)
 
         # Computation of cl
         cl = 0
@@ -79,7 +82,7 @@ class BladeSection:
 
         return dT, dM
 
-    def compute_torque_force(self, omega, rotor_speed, position_rotor, cla_coeffs, cda_coeffs):
+    def compute_torque_force(self, omega, rotor_speed, position_rotor, cla_coeffs, cda_coeffs, inflow_data):
         """
         Method that computes the torque produced by the blade section drag and the corresponding force in the x-y plane
         :param omega: the speed at which the propeller is rotating [rad/s]
@@ -88,10 +91,13 @@ class BladeSection:
         is necessary in order to understand how much of the air velocity is perpendicular to the blade [rad]
         :param cla_coeffs: list of coefficients used for the computation of the cl given the angle of attack
         :param cda_coeffs: list of coefficients used for the computation of the cd given the angle of attack
+        :param inflow_data:data regarding the inflow field, namely the uniform induced inflow field, induced inflow
+        velocity and a lambda function that computes the linear induced field depending on the blade element distance
+        from the hub and angle with respect to the inflow.
         :return:
         """
         # Compute parameters
-        Vl, aoa = self.compute_LS_term_params(omega, position_rotor, rotor_speed)
+        Vl, aoa = self.compute_LS_term_params(omega, position_rotor, rotor_speed, inflow_data)
 
         # Computation of cl
         cl = 0
@@ -174,7 +180,7 @@ class BladeSection:
         Vl = Vr + Vx_bl
 
         # The total velocity experienced by the blade cross section is the sum of the velocity components in the x
-        # and y directions
+        # and z directions
         V_z = rotor_speed[2] + vi
         V_total = np.sqrt(Vl**2+V_z**2)
 

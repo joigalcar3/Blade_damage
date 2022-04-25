@@ -365,8 +365,11 @@ def optimize(A, b, optimization_method, **kwargs):
         n_params = A.shape[1]
 
         # The initial value of the cl and cd coefficients
-        x0 = np.ones(n_params) * 0.1
-        # x0 = np.array([0.44, 2.53, -9.19, 0.97, 0.1, 0.1]).T
+        if kwargs["warm_starts"] is None:
+            x0 = np.ones(n_params) * 0.1
+            # x0 = np.array([0.44, 2.53, -9.19, 0.97, 0.1, 0.1]).T
+        else:
+            x0 = kwargs["warm_starts"]
 
         # Method used for the optimization
         min_method = kwargs["min_method"]
@@ -565,7 +568,7 @@ def compute_LS(LS_method, W_matrix, A, b):
 
 def compute_coeffs_grid_row(A, b, optimization_method, LS_method, W_matrix, degree_cla, degree_cda, min_angle,
                             max_angle, min_method, switch_constraints, number_samples_lst, filename_func,
-                            activate_plotting=False, input_storage=None):
+                            activate_plotting=False, input_storage=None, warm_starts=None):
     """
     Function to compute the cl and cd coefficients for different number of data points but a constant number of blade
     sections
@@ -585,6 +588,7 @@ def compute_coeffs_grid_row(A, b, optimization_method, LS_method, W_matrix, degr
     blade sections is not provided as input
     :param activate_plotting: whether the plotting of the cla and inputs plots should be done
     :param input_storage: the dictionary with all the input information for each data point
+    :param warm_starts: use already computed coefficients as warm start in the optimization
     :return:
     """
     global figure_number
@@ -600,7 +604,8 @@ def compute_coeffs_grid_row(A, b, optimization_method, LS_method, W_matrix, degr
         # Carry out the optimization
         x = optimize(A_local, b_local, optimization_method, LS_method=LS_method, W_matrix=W_matrix, degree_cla=degree_cla,
                      degree_cda=degree_cda, min_angle=0, max_angle=max_angle,
-                     min_method=min_method, switch_constraints=switch_constraints)
+                     min_method=min_method, switch_constraints=switch_constraints, warm_starts=warm_starts)
+        warm_starts = x.flatten()
 
         # Add the optimised coefficients to the grid
         coeffs_grid_row[0, i, :] = np.reshape(x, [-1, ])
