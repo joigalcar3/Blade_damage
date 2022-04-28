@@ -137,6 +137,7 @@ class Blade:
     def create_blade_sections(self, number_sections):
         """
         Method that creates the BladeSection objects that shape a blade.
+        :param number_sections: the number of blade sections in which the blade should be split
         :return:
         """
         blade_length = sum(self.healthy_hs)

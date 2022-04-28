@@ -32,8 +32,9 @@ an input to the black-box model would be the percentage of broken blade in the p
 from helper_func import *
 from user_input import *
 from Propeller import Propeller
-from helper_func import multi_figure_storage, plot_coeffs_map, compute_coeffs_grid_row
+from helper_func import multi_figure_storage, plot_coeffs_map, compute_coeffs_grid_row, store_Abu_data
 import matplotlib.pyplot as plt
+import pickle
 
 __author__ = "Jose Ignacio de Alvear Cardenas"
 __copyright__ = "Copyright 2022, Jose Ignacio de Alvear Cardenas"
@@ -88,13 +89,20 @@ if coefficients_identification:
     if switch_coeffs_grid_plot:
         coeffs_grid = np.zeros((len(n_blade_segment_lst), len(number_samples_lst), degree_cla+degree_cda+2))
         activate_plotting = False
-        warm_starts = np.array([2.99924620e-01,  4.36666107e+00, -1.14852923e+01,  9.44150117e-03, -8.11386646e-01,
-                                1.54958599e+01])
+        warm_starts = np.array([ 2.91490303e-01,  4.49088438e+00, -1.16254588e+01,  9.45445197e-03,
+                                 -8.12536151e-01,  1.55181623e+01])
     else:
         activate_plotting = True
     for i, n_blade_segment in enumerate(n_blade_segment_lst):
         number_samples = number_samples_lst[-1]
-        coeffs, A, b, u = propeller.compute_cla_coeffs(number_samples, n_blade_segment, degree_cla, degree_cda,
+
+        # Check the number of samples already available
+        if switch_recycle_samples:
+            available_samples, samples_to_compute = \
+                check_Abu_data(n_blade_segment, number_samples, va, min_method, file_name_suffix)
+        else:
+            samples_to_compute = number_samples
+        coeffs, A, b, u = propeller.compute_cla_coeffs(samples_to_compute, n_blade_segment, degree_cla, degree_cda,
                                                        min_w=min_w, max_w=max_w, va=va, rho=1.225,
                                                        activate_plotting=activate_plotting,
                                                        activate_params_blade_contribution_plotting=
@@ -104,19 +112,27 @@ if coefficients_identification:
                                                        switch_avg_rot=switch_avg_rot, n_rot_steps=n_rot_steps,
                                                        optimization_method=optimization_method,
                                                        min_method=min_method, switch_constraints=switch_constraints)
+
+        # Save the computed samples
+        store_Abu_data(A, b, u, n_blade_segment, number_samples, va, min_method, file_name_suffix)
+
         if switch_coeffs_grid_plot:
-            filename_func = lambda ns: f'Saved_figures/{ns}_dp_{n_blade_segment}_bs_{va}_va_{min_method}_mod.pdf'
+            if switch_recycle_samples:
+                A, b, u = retrieve_Abu_data(n_blade_segment, number_samples, va, min_method, file_name_suffix)
+            filename_func = lambda ns: f'Saved_figures/{ns}_dp_{n_blade_segment}_bs_{va}_va_{min_method}_{file_name_suffix}.pdf'
             coeffs_grid_row = compute_coeffs_grid_row(A=A, b=b, optimization_method=optimization_method,
                                                       LS_method=LS_method, W_matrix=None, degree_cla=degree_cla,
                                                       degree_cda=degree_cda, min_angle=start_cla_plot,
                                                       max_angle=finish_cla_plot, min_method=min_method,
                                                       switch_constraints=switch_constraints,
                                                       number_samples_lst=number_samples_lst,
-                                                      filename_func=filename_func, activate_plotting=True,
-                                                      input_storage=u, warm_starts=warm_starts)
+                                                      filename_func=filename_func, activate_plotting=False,
+                                                      input_storage=u, warm_starts=warm_starts,
+                                                      current_coeffs_grid=coeffs_grid,
+                                                      warm_start_row_index=i)
             coeffs_grid[[i], :, :] = coeffs_grid_row
             warm_starts = coeffs_grid[i, -1, :]
-            data_filename = f'Saved_data/{number_samples_lst[0]}_{number_samples_lst[-1]}_dp_{n_blade_segment_lst[0]}_{n_blade_segment_lst[-1]}_bs_{va}_va_{min_method}_mod__coeffs_storage.npy'
+            data_filename = f'Saved_data/{number_samples_lst[0]}_{number_samples_lst[-1]}_dp_{n_blade_segment_lst[0]}_{n_blade_segment_lst[-1]}_bs_{va}_va_{min_method}_{file_name_suffix}__coeffs_storage.npy'
             with open(data_filename, 'wb') as f:
                 np.save(f, coeffs_grid)
         cla_coeffs = coeffs[:degree_cla + 1, 0]
@@ -124,8 +140,8 @@ if coefficients_identification:
         print(cla_coeffs)
         print(cda_coeffs)
     if switch_coeffs_grid_plot:
-        plot_coeffs_map(coeffs_grid, degree_cla, degree_cda)
-        figure_filename = f'Saved_figures/{number_samples_lst[0]}_{number_samples_lst[-1]}_dp_{n_blade_segment_lst[0]}_{n_blade_segment_lst[-1]}_bs_{va}_va_{min_method}_mod.pdf'
+        plot_coeffs_map(coeffs_grid, degree_cla, degree_cda, number_samples_lst, n_blade_segment_lst)
+        figure_filename = f'Saved_figures/{number_samples_lst[0]}_{number_samples_lst[-1]}_dp_{n_blade_segment_lst[0]}_{n_blade_segment_lst[-1]}_bs_{va}_va_{min_method}_{file_name_suffix}.pdf'
         multi_figure_storage(figure_filename, figs=None, dpi=200)
 
 # ----------------------------------------------------------------------------------------------------------------------

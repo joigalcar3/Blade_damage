@@ -10,11 +10,12 @@ model, implements the model identification and all the plotters.
 import numpy as np
 from scipy.optimize import minimize
 import matplotlib.pyplot as plt
-from math import radians
-from math import degrees
+from math import radians, degrees
 import time
+import os
+import pickle
 from matplotlib.backends.backend_pdf import PdfPages
-from matplotlib.ticker import MultipleLocator, ScalarFormatter
+from matplotlib.ticker import MultipleLocator, ScalarFormatter, IndexLocator
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 import matplotlib
 matplotlib.use('Agg')
@@ -386,7 +387,7 @@ def optimize(A, b, optimization_method, **kwargs):
                             "args": arguments_constraint},
                            {"type": "ineq", "fun": nonlinear_constraint_lift_alpha0, "args": arguments_constraint})
             x = minimize(minimize_func, x0, args=(A, b), method=min_method, constraints=constraints,
-                         options={"disp": True, "maxiter": 2000}).x
+                         options={"disp": True, "maxiter": 2000, "ftol": 1e-08}).x
         else:
             x = minimize(minimize_func, x0, args=(A, b), method=min_method).x
     else:
@@ -568,7 +569,8 @@ def compute_LS(LS_method, W_matrix, A, b):
 
 def compute_coeffs_grid_row(A, b, optimization_method, LS_method, W_matrix, degree_cla, degree_cda, min_angle,
                             max_angle, min_method, switch_constraints, number_samples_lst, filename_func,
-                            activate_plotting=False, input_storage=None, warm_starts=None):
+                            activate_plotting=False, input_storage=None, warm_starts=None, current_coeffs_grid=None,
+                            warm_start_row_index=0):
     """
     Function to compute the cl and cd coefficients for different number of data points but a constant number of blade
     sections
@@ -589,6 +591,8 @@ def compute_coeffs_grid_row(A, b, optimization_method, LS_method, W_matrix, degr
     :param activate_plotting: whether the plotting of the cla and inputs plots should be done
     :param input_storage: the dictionary with all the input information for each data point
     :param warm_starts: use already computed coefficients as warm start in the optimization
+    :param current_coeffs_grid: current state of the coefficient grid
+    :param warm_start_row_index: row index within the coefficient grid of the current row
     :return:
     """
     global figure_number
@@ -600,6 +604,10 @@ def compute_coeffs_grid_row(A, b, optimization_method, LS_method, W_matrix, degr
         # Retrieving the information concerning the first "number_samples" data points
         A_local = A[:number_samples*2, :]
         b_local = b[:number_samples*2, :]
+
+        # Compute the average warm start
+        if warm_start_row_index != 0:
+            warm_starts = (warm_starts + current_coeffs_grid[warm_start_row_index-1, i, :])/2
 
         # Carry out the optimization
         x = optimize(A_local, b_local, optimization_method, LS_method=LS_method, W_matrix=W_matrix, degree_cla=degree_cla,
@@ -637,6 +645,191 @@ def compute_coeffs_grid_row(A, b, optimization_method, LS_method, W_matrix, degr
             plt.close('all')
     return coeffs_grid_row
 
+
+def store_Abu_data(A, b, u, n_blade_segment, number_samples, va, min_method, name_suffix):
+    """
+    Function that stores the computed data points. NOT TESTED
+    :param A: the A matrix of the LS
+    :param b: the b matrix of the LS
+    :param u: the input matrix of the LS
+    :param n_blade_segment: number of blade segments
+    :param number_samples: number of samples
+    :param va: airspeed
+    :param min_method: method used for the optimization
+    :param name_suffix: suffix of the file name
+    :return:
+    """
+    name_lst = ["A", "b", "u"]
+    extension = [".npy", ".npy", ""]
+    variables = [A, b, u]
+    new_samples = b.shape[0]
+    for i, name in enumerate(name_lst):
+        folder = 'Saved_data_points/' + name
+
+        # Obtain the name of the file where the info will be saved
+        desired_filename = f"{n_blade_segment}_bs_{number_samples}_dp_{va}_va_{min_method}_{name_suffix}__" + \
+                           name + extension[i]
+        desired_filename_lst = desired_filename.split("_")
+        desired_filename_lst = desired_filename_lst[:2]+desired_filename_lst[3:-2]
+
+        # Check if the file exists
+        filenames = os.listdir(folder)
+        filenames_lst = [filename.split("_") for filename in filenames]
+        filenames_lst_lst = [filename_lst[:2] + filename_lst[3:-2] for filename_lst in filenames_lst]
+        check_filename_existence = desired_filename_lst in filenames_lst_lst
+
+        # If file exists, add already existing data points
+        if check_filename_existence:
+            index = filenames_lst_lst.index(desired_filename_lst)
+            available_samples = int(filenames_lst[index][2])
+            total_samples = available_samples + new_samples
+            old_filename = filenames[index]
+            desired_filename = f"{n_blade_segment}_bs_{total_samples}_dp_{va}_va_{min_method}_{name_suffix}__" + \
+                               name + extension[i]
+            if extension[i] == ".npy":
+                stored_variable = np.load(old_filename)
+                variable = np.vstack((stored_variable, variables[i]))
+            else:
+                dbfile = open(old_filename, 'rb')
+                stored_variable = pickle.load(dbfile)
+                variable = stored_variable
+                dbfile.close()
+                variable['body_velocity'] += variables[i]['body_velocity']
+                variable['pqr'] += variables[i]['pqr']
+                variable['omega'] += variables[i]['omega']
+        else:
+            variable = variables[i]
+
+        with open(folder + "/" + desired_filename, 'wb') as f:
+            if extension[i] == ".npy":
+                np.save(f, variable)
+            else:
+                pickle.dump(variable, f)
+
+
+def check_Abu_data(n_blade_segment, number_samples, va, min_method, name_suffix):
+    """
+    Function to check the number of samples available and the number of samples to be computed. NOT TESTED
+    :param n_blade_segment: number of blade sections
+    :param number_samples: the total number of samples desired
+    :param va: the airspeed
+    :param min_method: the method used for optimization
+    :param name_suffix: component added at the end of the filename
+    :return:
+    """
+    folder = 'Saved_data_points/b'
+
+    # Obtain the name of the file where the info will be saved
+    desired_filename = f"{n_blade_segment}_bs_{number_samples}_dp_{va}_va_{min_method}_{name_suffix}__b.npy"
+
+    desired_filename_lst = desired_filename.split("_")
+    desired_filename_lst = desired_filename_lst[:2] + desired_filename_lst[3:-2]
+
+    # Check if the file exists
+    filenames_lst = [filename.split("_") for filename in os.listdir(folder)]
+    filenames_lst_lst = [filename_lst[:2] + filename_lst[3:-2] for filename_lst in filenames_lst]
+    check_filename_existence = desired_filename_lst in filenames_lst_lst
+
+    # If file exists, retrieve the number of data points already computed
+    if check_filename_existence:
+        index = filenames_lst_lst.index(desired_filename_lst)
+        available_samples = int(filenames_lst[index][2])
+        return available_samples, max(number_samples-available_samples, 0)
+    return 0, number_samples
+
+
+def retrieve_Abu_data(n_blade_segment, number_samples, va, min_method, name_suffix):
+    """
+    Function to retrieve samples from the saved files. NOT TESTED
+    :param n_blade_segment: number of blade sections
+    :param number_samples: the total number of samples desired
+    :param va: the airspeed
+    :param min_method: the method used for optimization
+    :param name_suffix: component added at the end of the filename
+    :return:
+    """
+    name_lst = ["A", "b", "u"]
+    extension = [".npy", ".npy", ""]
+    variables = []
+    for i, name in enumerate(name_lst):
+        folder = 'Saved_data_points/' + name
+
+        # Obtain the name of the file where the info will be saved
+        desired_filename = f"{n_blade_segment}_bs_{number_samples}_dp_{va}_va_{min_method}_{name_suffix}__" + \
+                           name + extension[i]
+        desired_filename_lst = desired_filename.split("_")
+        desired_filename_lst = desired_filename_lst[:2]+desired_filename_lst[3:-2]
+
+        # Check if the file exists
+        filenames = os.listdir(folder)
+        filenames_lst = [filename.split("_") for filename in filenames]
+        filenames_lst_lst = [filename_lst[:2] + filename_lst[3:-2] for filename_lst in filenames_lst]
+        check_filename_existence = desired_filename_lst in filenames_lst_lst
+
+        if not check_filename_existence:
+            raise Exception(f"The searched file ({desired_filename_lst} does not exist.")
+
+        # If file exists, add already existing data points
+        index = filenames_lst_lst.index(desired_filename_lst)
+        old_filename = filenames[index]
+        if extension[i] == ".npy":
+            stored_variable = np.load(old_filename)
+            variable = stored_variable[:number_samples, :]
+        else:
+            dbfile = open(old_filename, 'rb')
+            stored_variable = pickle.load(dbfile)
+            variable = stored_variable
+            dbfile.close()
+            variable['body_velocity'] = variable['body_velocity'][:number_samples]
+            variable['pqr'] = variable['pqr'][:number_samples]
+            variable['omega'] = variable['omega'][:number_samples]
+        variables.append(variable)
+
+    return variables[0], variables[1], variables[2]
+
+
+def personal_opt(func, x0, den):
+    """
+    Personal optimization (gradient descend) function to substitute the scipy.optimize.minimize Nelder_Mead function
+    used for the computation of the induced velocity. The function stops when the denominator becomes zero, when the
+    maximum number of iterations has been reached or when the optimization variable has barely changed in 20 iterations.
+    This function takes less time than the scipy counterpart and it can be implemented in C++.
+    :param func: function to minimize
+    :param x0: initial condition
+    :param den: the denominator of the derivative of the func function
+    :return:
+    """
+    x = x0
+    alpha = 0.5
+    th = 0.01
+    counter = 0
+    previous_der = func(x)
+    for i in range(10000):
+        # If the denominator of the function is zero, then we have reached the desired point
+        if abs(den([x])) < 1e-10:
+            return x
+
+        # Compute and apply the gradient
+        der = func(x)
+        x_new = x - alpha*der
+
+        # If the derivative changes sign, it means that we have passed through the minimum. Reduce alpha
+        if der != 0:
+            if previous_der/der < 0:
+                alpha = alpha/2.
+
+        # If there has not been a change in x, return function
+        step = x_new-x
+        if abs(step) < th:
+            counter += 1
+        else:
+            counter = 0
+
+        x = x_new
+        previous_der = der
+        if counter > 20:
+            return x
+    return x
 
 # Plotters
 # %%
@@ -978,38 +1171,140 @@ def plot_inputs(inputs_dict):
                 # plt.show()
 
 
-def plot_coeffs_map(coeffs_grid, degree_cla, degree_cda):
+def plot_coeffs_map(coeffs_grid, degree_cla, degree_cda, x_coords, y_coords):
     """
     Function to plot the coefficients for different blade discretisations and number of data points
     :param coeffs_grid: identified cl and cd coefficients
     :param degree_cla: degree of cl polynomial
     :param degree_cda: degree of cd polynomial
+    :param x_coords: the values of the x-axis
+    :param y_coords: the values of the y-axis
     :return:
     """
     global figure_number
 
-    def coeff_plotter(coeffs_grid_local, degree, coeff_type):
-        global figure_number
-        fig = plt.figure(figure_number)
-        figure_number += 1
-        axes = fig.subplots(degree + 1, 1, gridspec_kw={'wspace': 0.5, 'hspace': 0.5})
-        counter = 0
-        for ax in axes:
-            im = ax.pcolormesh(coeffs_grid_local[:, :, counter], cmap="viridis")
-            ax.set_xlabel("q [-]")
-            ax.set_ylabel("$n_{bs}$ [-]")
-            ax.grid(True)
-            divider = make_axes_locatable(ax)
-            cax = divider.append_axes('right', size='5%', pad=0.05)
-            fig.colorbar(im, cax=cax, orientation='vertical')
-            counter += 1
-        fig.suptitle(f"Value of the {coeff_type} coefficients wrt. the number of samples and blade sections")
+    # Computation of the axis coords
+    x_step = x_coords[1]-x_coords[0]
+    y_step = y_coords[1]-y_coords[0]
+    x_coords_edges = np.arange(x_coords[0]-x_step/2, x_coords[-1] + x_step, x_step)
+    y_coords_edges = np.arange(y_coords[0] - y_step / 2, y_coords[-1] + y_step, y_step)
+    x_coords_mesh = np.tile(np.reshape(x_coords_edges, [1, -1]), (len(y_coords) + 1, 1))
+    y_coords_mesh = np.tile(np.reshape(y_coords_edges, [-1, 1]), (1, len(x_coords) + 1))
 
     # Plot the cl coefficients
-    coeff_plotter(coeffs_grid[:, :, :degree_cla+1], degree_cla, "lift")
+    coeff_plotter(coeffs_grid[:, :, :degree_cla+1], degree_cla, "lift", x_coords_mesh, y_coords_mesh, gradient=False)
 
     # Plot the cd coeffs
-    coeff_plotter(coeffs_grid[:, :, degree_cla+1:], degree_cda, "drag")
+    coeff_plotter(coeffs_grid[:, :, degree_cla+1:], degree_cda, "drag", x_coords_mesh, y_coords_mesh, gradient=False)
+
+
+def plot_derivative_coeffs_map(coeffs_grid, degree_cla, degree_cda, x_coords, y_coords):
+    """
+    Function to plot the percentage change of the coefficients with respect to changes in the number of samples and the
+    blade discretisation
+    :param coeffs_grid: identified cl and cd coefficients
+    :param degree_cla: degree of cl polynomial
+    :param degree_cda: degree of cd polynomial
+    :param x_coords: the values of the x-axis
+    :param y_coords: the values of the y-axis
+    :return:
+    """
+    # Computation of the axis coords
+    x_step = x_coords[1]-x_coords[0]
+    y_step = y_coords[1]-y_coords[0]
+
+    x_coords_edges = np.arange(x_coords[0] - x_step / 2, x_coords[-1] + x_step, x_step)
+    x_coords_edges_mod = np.arange(x_coords[1] - x_step / 2, x_coords[-1] + x_step, x_step)
+    y_coords_edges = np.arange(y_coords[0] - y_step / 2, y_coords[-1] + y_step, y_step)
+    y_coords_edges_mod = np.arange(y_coords[1] - y_step / 2, y_coords[-1] + y_step, y_step)
+
+    x_coords_mesh_der_x = np.tile(np.reshape(x_coords_edges_mod, [1, -1]), (len(y_coords) + 1, 1))
+    x_coords_mesh_der_y = np.tile(np.reshape(x_coords_edges, [1, -1]), (len(y_coords), 1))
+    y_coords_mesh_der_x = np.tile(np.reshape(y_coords_edges, [-1, 1]), (1, len(x_coords)))
+    y_coords_mesh_der_y = np.tile(np.reshape(y_coords_edges_mod, [-1, 1]), (1, len(x_coords) + 1))
+
+    # Computation of the derivative coefficients
+    # Along the x_axis
+    coeffs_grid_der_x = np.abs((coeffs_grid[:, 1:, :]-coeffs_grid[:, :-1, :]) / \
+                        np.tile(coeffs_grid[:, [-1], :], (1, coeffs_grid.shape[1]-1, 1)) * 100)
+    coeffs_grid_der_y = np.abs((coeffs_grid[1:, :, :] - coeffs_grid[:-1, :, :]) / \
+                        np.tile(coeffs_grid[[-1], :, :], (coeffs_grid.shape[0] - 1, 1, 1)) * 100)
+
+    # Derivative along the number of data samples axis
+    # Plot the cl coefficients
+    coeff_plotter(coeffs_grid_der_x[:, :, :degree_cla+1], degree_cla, "percentage change of the lift",
+                  x_coords_mesh_der_x, y_coords_mesh_der_x, gradient=True)
+
+    # Plot the cd coeffs
+    coeff_plotter(coeffs_grid_der_x[:, :, degree_cla+1:], degree_cda, "percentage change of the drag",
+                  x_coords_mesh_der_x, y_coords_mesh_der_x, gradient=True)
+
+    # Derivative along the number of blade sections axis
+    # Plot the cl coefficients
+    coeff_plotter(coeffs_grid_der_y[:, :, :degree_cla+1], degree_cla, "percentage change of the lift",
+                  x_coords_mesh_der_y, y_coords_mesh_der_y, gradient=True)
+
+    # Plot the cd coeffs
+    coeff_plotter(coeffs_grid_der_y[:, :, degree_cla+1:], degree_cda, "percentage change of the drag",
+                  x_coords_mesh_der_y, y_coords_mesh_der_y, gradient=True)
+
+    # Using the maximum
+    # Plot the maximum values from the coefficients axis
+    coeffs_grid_der_x_max = np.reshape(np.amax(coeffs_grid_der_x, axis=2),
+                                       [coeffs_grid_der_x.shape[0], coeffs_grid_der_x.shape[1], 1])
+    coeffs_grid_der_y_max = np.reshape(np.amax(coeffs_grid_der_y, axis=2),
+                                       [coeffs_grid_der_y.shape[0], coeffs_grid_der_y.shape[1], 1])
+
+    coeff_plotter(coeffs_grid_der_x_max, 0, "percentage change of the maximum",
+                  x_coords_mesh_der_x, y_coords_mesh_der_x, gradient=True)
+
+    coeff_plotter(coeffs_grid_der_y_max, 0, "percentage change of the maximum",
+                  x_coords_mesh_der_y, y_coords_mesh_der_y, gradient=True)
+
+    # Final plot merging both
+    coeffs_grid_der_max = np.maximum(coeffs_grid_der_x_max[1:, :, :], coeffs_grid_der_y_max[:, 1:, :])
+    coeff_plotter(coeffs_grid_der_max, 0, "percentage change of the maximum",
+                  x_coords_mesh_der_x[1:, :], y_coords_mesh_der_y[:, 1:], gradient=True)
+
+    coeffs_grid_der_sum = coeffs_grid_der_x_max[1:, :, :] + coeffs_grid_der_y_max[:, 1:, :]
+    coeff_plotter(coeffs_grid_der_sum, 0, "percentage change of the sum",
+                  x_coords_mesh_der_x[1:, :], y_coords_mesh_der_y[:, 1:], gradient=True)
+
+
+def coeff_plotter(coeffs_grid_local, degree, coeff_type, X, Y, gradient=False):
+    """
+    Used to create a colour map of the lift or drag coefficient
+    :param coeffs_grid_local: identified cl and cd coefficients
+    :param degree: degree of cl polynomial
+    :param coeff_type: the type of coefficient, used for the plot title
+    :param X: the values of the x-axis
+    :param Y: the values of the y-axis
+    :param gradient: whether the function is plotting a gradient
+    :return:
+    """
+    global figure_number
+    fig = plt.figure(figure_number)
+    figure_number += 1
+    axes = fig.subplots(degree + 1, 1, gridspec_kw={'wspace': 0.5, 'hspace': 0.5})
+    counter = 0
+    for ax in np.array([axes]).flatten():
+        if gradient:
+            im = ax.pcolormesh(X, Y, coeffs_grid_local[:, :, counter], vmin=0, vmax=1, cmap="viridis")
+        else:
+            im = ax.pcolormesh(X, Y, coeffs_grid_local[:, :, counter], cmap="viridis")
+        ax.set_xlabel("q [-]")
+        ax.set_ylabel("$n_{bs}$ [-]")
+        ax.yaxis.set_major_locator(MultipleLocator(100))
+        ax.yaxis.set_minor_locator(IndexLocator(base=Y[1, 0]-Y[0, 0], offset=0))
+        ax.xaxis.set_minor_locator(IndexLocator(base=X[0, 1]-X[0, 0], offset=0))
+        ax.grid(b=True, which='minor')
+        # ax.grid(b=True, which='major')
+        # ax.set_xlim([1000, Y[-1, -1]])
+        divider = make_axes_locatable(ax)
+        cax = divider.append_axes('right', size='5%', pad=0.05)
+        fig.colorbar(im, cax=cax, orientation='vertical')
+        counter += 1
+    fig.suptitle(f"Value of the {coeff_type} coefficients wrt. the number of samples and blade sections")
 
 
 def plot_FM(t, rotation_angle, F, M):
