@@ -256,7 +256,7 @@ class Propeller:
         :return: the body linear and angular velocities, as well as the propeller rotational velocity
         """
         pqr = np.array([[0], [0], [0]])
-        w = random.uniform(min_w, -min_w)
+        w = random.uniform(min_w, max_w)
         sign = 1 if random.random() < 0.5 else -1
         # va_local = random.uniform(max(abs(w), 2), va)  # new
         # u = sign * np.sqrt(va ** 2 - w ** 2)  # new
@@ -375,9 +375,9 @@ class Propeller:
         R = sum(self.hs) + self.radius_hub  # radius of the propeller
         A = pi * R * R  # area of the propeller
         V_inf = np.linalg.norm(self.propeller_velocity)  # the velocity seen by the propeller
-        V_xy = np.sqrt(
-            self.propeller_velocity[0] ** 2 + self.propeller_velocity[1] ** 2)  # the velocity projected in the xy plane
-        tpp_V_angle = np.arccos(V_xy / V_inf)  # the angle shaped by the tip path plane and the velocity
+        # V_xy = np.sqrt(
+        #     self.propeller_velocity[0] ** 2 + self.propeller_velocity[1] ** 2)  # the velocity projected in the xy plane
+        tpp_V_angle = np.arcsin(-self.propeller_velocity[2] / V_inf)  # the angle shaped by the tip path plane and the velocity
 
         # Function to minimize, initial condition and bounds
         min_func = lambda x: abs(T - 2 * rho * A * x[0] * np.sqrt((V_inf * np.cos(tpp_V_angle)) ** 2 +
@@ -390,7 +390,7 @@ class Propeller:
         #                       2 * rho * A * x * (V_inf * np.sin(tpp_V_angle) + x) /
         #                       (np.sqrt((V_inf * np.cos(tpp_V_angle)) ** 2 +
         #                                (V_inf * np.sin(tpp_V_angle) + x) ** 2))) * min_func_2([x]) / min_func([x])
-        x0 = np.array([1])
+        x0 = np.array([4.5])
         bnds = ((0, 20),)
 
         # Uniform induced velocity and inflow
@@ -398,7 +398,7 @@ class Propeller:
         v0 = minimize(min_func, x0, method='Nelder-Mead', tol=1e-6, options={'disp': False}, bounds=bnds).x[0]
         # then_time = time()
         # scipy_time = then_time-now_time
-        # x0 = np.array([5])
+        # x0 = np.array([4.5])
         # now_time = time()
         # V0_2 = personal_opt(der_func, x0, min_func)
         # then_time = time()

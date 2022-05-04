@@ -806,7 +806,7 @@ def personal_opt(func, x0, den):
     previous_der = func(x)
     for i in range(10000):
         # If the denominator of the function is zero, then we have reached the desired point
-        if abs(den([x])) < 1e-10:
+        if den([x]) < 1e-10:
             return x
 
         # Compute and apply the gradient
@@ -820,15 +820,14 @@ def personal_opt(func, x0, den):
 
         # If there has not been a change in x, return function
         step = x_new-x
-        if abs(step) < th:
-            counter += 1
-        else:
-            counter = 0
-
         x = x_new
         previous_der = der
-        if counter > 20:
-            return x
+        if abs(step) < th:
+            counter += 1
+            if counter > 20:
+                return x
+        else:
+            counter = 0
     return x
 
 # Plotters

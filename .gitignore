@@ -135,3 +135,6 @@ Saved_figures/
 Saved_data/
 
 Saved_data_points/
+
+Gradient_descent_plotter.py
+Coefficient_map_plotter.py
