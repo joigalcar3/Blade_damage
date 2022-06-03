@@ -106,7 +106,9 @@ class Blade:
             areas.append(area)
             h0 += self.hs[i]
         self.blade_area = sum(areas)
-        self.y_cg = mass_moment / self.blade_area
+        self.y_cg = 0
+        if self.blade_area != 0:
+            self.y_cg = mass_moment / self.blade_area
 
     def compute_blade_mass(self, healthy_mass):
         """
@@ -174,7 +176,7 @@ class Blade:
         :return:
         """
         blade_angle = (rotation_propeller + self.initial_angle) % (2 * np.pi)
-        if not self.blade_sections:
+        if not self.blade_sections and not self.damaged_blade_sections:
             self.create_blade_sections(number_sections)
 
         LS_terms = np.zeros((2, degree_cla + degree_cda + 2))
@@ -209,7 +211,7 @@ class Blade:
         :return:
         """
         blade_angle = (angle_propeller_rotation + self.initial_angle) % (2 * np.pi)
-        if not self.blade_sections:
+        if not self.blade_sections and not self.damaged_blade_sections:
             self.create_blade_sections(number_sections)
 
         T_remaining = 0
@@ -247,7 +249,7 @@ class Blade:
         :return:
         """
         blade_angle = (angle_propeller_rotation + self.initial_angle) % (2 * np.pi)
-        if not self.blade_sections:
+        if not self.blade_sections and not self.damaged_blade_sections:
             self.create_blade_sections(number_sections)
 
         Q_remaining = 0

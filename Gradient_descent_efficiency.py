@@ -22,7 +22,10 @@ n_error_nelder = 0
 n_error_grad = 0
 for i in range(number_samples):
     body_velocity, pqr, omega = propeller.generate_ls_dp_input(min_w, -min_w, va)
-
+    # body_velocity = np.array([[0],[0],[0]])
+    # pqr = np.array([[0], [0], [0]])
+    # omega = 1256
+    # rho = 1.225
     T, N = propeller.compute_lift_torque_matlab(body_velocity, pqr, omega, rho)
 
     V_inf = np.linalg.norm(propeller.propeller_velocity)

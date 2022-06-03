@@ -17,8 +17,8 @@ import pickle
 from matplotlib.backends.backend_pdf import PdfPages
 from matplotlib.ticker import MultipleLocator, ScalarFormatter, IndexLocator
 from mpl_toolkits.axes_grid1 import make_axes_locatable
+from statsmodels.stats.stattools import durbin_watson
 import matplotlib
-matplotlib.use('Agg')
 
 __author__ = "Jose Ignacio de Alvear Cardenas"
 __copyright__ = "Copyright 2022, Jose Ignacio de Alvear Cardenas"
@@ -662,7 +662,7 @@ def store_Abu_data(A, b, u, n_blade_segment, number_samples, va, min_method, nam
     name_lst = ["A", "b", "u"]
     extension = [".npy", ".npy", ""]
     variables = [A, b, u]
-    new_samples = b.shape[0]
+    new_samples = b.shape[0]/2
     for i, name in enumerate(name_lst):
         folder = 'Saved_data_points/' + name
 
@@ -682,8 +682,8 @@ def store_Abu_data(A, b, u, n_blade_segment, number_samples, va, min_method, nam
         if check_filename_existence:
             index = filenames_lst_lst.index(desired_filename_lst)
             available_samples = int(filenames_lst[index][2])
-            total_samples = available_samples + new_samples
-            old_filename = filenames[index]
+            total_samples = int(available_samples + new_samples)
+            old_filename = os.path.join(folder, filenames[index])
             desired_filename = f"{n_blade_segment}_bs_{total_samples}_dp_{va}_va_{min_method}_{name_suffix}__" + \
                                name + extension[i]
             if extension[i] == ".npy":
@@ -692,7 +692,7 @@ def store_Abu_data(A, b, u, n_blade_segment, number_samples, va, min_method, nam
             else:
                 dbfile = open(old_filename, 'rb')
                 stored_variable = pickle.load(dbfile)
-                variable = stored_variable
+                variable = stored_variable.copy()
                 dbfile.close()
                 variable['body_velocity'] += variables[i]['body_velocity']
                 variable['pqr'] += variables[i]['pqr']
@@ -705,6 +705,8 @@ def store_Abu_data(A, b, u, n_blade_segment, number_samples, va, min_method, nam
                 np.save(f, variable)
             else:
                 pickle.dump(variable, f)
+        if check_filename_existence:
+            os.remove(old_filename)
 
 
 def check_Abu_data(n_blade_segment, number_samples, va, min_method, name_suffix):
@@ -771,10 +773,10 @@ def retrieve_Abu_data(n_blade_segment, number_samples, va, min_method, name_suff
 
         # If file exists, add already existing data points
         index = filenames_lst_lst.index(desired_filename_lst)
-        old_filename = filenames[index]
+        old_filename = os.path.join(folder, filenames[index])
         if extension[i] == ".npy":
             stored_variable = np.load(old_filename)
-            variable = stored_variable[:number_samples, :]
+            variable = stored_variable[:2*number_samples, :]
         else:
             dbfile = open(old_filename, 'rb')
             stored_variable = pickle.load(dbfile)
@@ -848,16 +850,37 @@ def plot_chord_twist(chord, twist):
     y_chord_2 = [-i for i in y_chord_1]
     plt.figure(figure_number)
     figure_number += 1
-    plt.plot(x_chord, y_chord_1, 'r-')
-    plt.plot(x_chord, y_chord_2, 'r-')
+    plt.plot(x_chord, y_chord_1, 'r-', linewidth=4)
+    plt.plot(x_chord, y_chord_2, 'r-', linewidth=4)
     plt.grid(True)
 
+    y_chord_3 = [i*1000 for i in chord]
     x_twist = range(len(twist))
     y_twist = [degrees(i) for i in twist]
     plt.figure(figure_number)
     figure_number += 1
-    plt.plot(x_twist, y_twist, 'r-')
+    ax1 = plt.gca()
+    l1 = plt.plot(x_chord, y_chord_3, color='#1f77b4', linestyle='-', linewidth=4)
+    l2 = plt.plot(x_chord[0], 13, color='#1f77b4', marker='o', markersize=20, linewidth=0)
+    # l3 = plt.plot(x_chord[y_chord_3.index(np.max(y_chord_3))], 20, color='#1f77b4', marker='X', markersize=20, linewidth=0)
+    l4 = plt.plot(x_chord[-1], 8, color='#1f77b4', marker='v', markersize=20, linewidth=0)
+    plt.ylabel("$c$ [mm]")
+    plt.ylim([0, 24])
+    plt.yticks(np.arange(0, 28, step=4))
+    plt.xlabel("Blade section number [-]")
+    ax1.tick_params('y', colors='#1f77b4')
+    ax1.yaxis.label.set_color('#1f77b4')
     plt.grid(True)
+
+    ax2 = ax1.twinx()
+    l5 = ax2.plot(x_twist, y_twist, color='#ff7f0e', linestyle='--', linewidth=4)
+    ax2.set_ylabel("$\\theta$ [deg]")
+    ax2.set_ylim([0,30])
+    ax2.tick_params('y', colors='#ff7f0e')
+    ax2.yaxis.label.set_color('#ff7f0e')
+    plt.grid(True)
+    # plt.legend([l1[0],l5[0], l2[0], l3[0], l4[0]], ["Chord", "Twist", '$c_r$=13 mm', '$c_c$=20 mm', '$c_t$=8 mm'], loc=8)
+    plt.legend([l1[0], l5[0], l2[0], l4[0]], ["Chord", "Twist", '$c_r$',  '$c_t$'], loc=3)
 
 
 def plot_cla(x, A, b, aoa_storage, start_alpha, finish_alpha, degree_cla, degree_cda):
@@ -913,15 +936,15 @@ def plot_cla(x, A, b, aoa_storage, start_alpha, finish_alpha, degree_cla, degree
                 title += '+'
     plt.figure(figure_number)
     figure_number += 1
-    plt.plot(alphas, cls, 'r-')
-    plt.xlabel("Angle of attack [deg]")
-    plt.ylabel("Lift coefficient [-]")
-    plt.title(title)
+    plt.plot(alphas, cls, 'r-', linewidth=4)
+    plt.xlabel("$\\alpha$ [deg]")
+    plt.ylabel("$C_l$ [-]")
+    # plt.title(title)
     ax = plt.gca()
     if (max(cls) - min(cls)) / 0.1 > 20:
         y_discretisation = 0.5
     elif (max(cls) - min(cls)) / 0.1 > 2:
-        y_discretisation = 0.1
+        y_discretisation = 0.2
     else:
         y_discretisation = 0.01
     ax.yaxis.set_major_locator(MultipleLocator(y_discretisation))
@@ -937,10 +960,10 @@ def plot_cla(x, A, b, aoa_storage, start_alpha, finish_alpha, degree_cla, degree
                 title += '+'
     plt.figure(figure_number)
     figure_number += 1
-    plt.plot(alphas, cds, 'r-')
-    plt.xlabel("Angle of attack [deg]")
-    plt.ylabel("Drag coefficient [-]")
-    plt.title(title)
+    plt.plot(alphas, cds, 'r-', linewidth=4)
+    plt.xlabel("$\\alpha$ [deg]")
+    plt.ylabel("$C_d$ [-]")
+    # plt.title(title)
     ax = plt.gca()
     if (max(cds) - min(cds)) / 0.1 > 20:
         y_discretisation = 0.5
@@ -953,7 +976,7 @@ def plot_cla(x, A, b, aoa_storage, start_alpha, finish_alpha, degree_cla, degree
     plt.grid(True)
 
     # Compare the results predicted by multiplying A and x, with respect to the observations in b for the thrust
-    b_approx = np.matmul(A, x)
+    b_approx = np.reshape(np.matmul(A, x), [-1,1])
     number_p = A.shape[0]
     data_points = range(int(number_p / 2))
     plt.figure(figure_number)
@@ -968,8 +991,8 @@ def plot_cla(x, A, b, aoa_storage, start_alpha, finish_alpha, degree_cla, degree
     # Compare the results predicted by multiplying A and x, with respect to the observations in b for the torque
     plt.figure(figure_number)
     figure_number += 1
-    plt.plot(data_points, b[1::2, 0], 'ro')
-    plt.plot(data_points, b_approx[1::2, 0], 'bo')
+    plt.plot(data_points, b[1::2], 'ro')
+    plt.plot(data_points, b_approx[1::2], 'bo')
     plt.xlabel("Data point [-]")
     plt.ylabel("Torque value")
     plt.title("Torque: Ax vs b")
@@ -986,6 +1009,12 @@ def plot_cla(x, A, b, aoa_storage, start_alpha, finish_alpha, degree_cla, degree
     print(f"Mean error torque: {average_error_Q} [Nm].")
     print(f"Maximum error percentage: {max(percentage_error)}%")
 
+    # Durbin Watson autocorrelation statistical test
+    DW_T = durbin_watson(error_T)
+    DW_Q = durbin_watson(error_Q)
+    print(f"Durbin Watson test for thrust: {np.round(DW_T[0],3)}")
+    print(f"Durbin Watson test for torque: {np.round(DW_Q[0],3)}")
+
     # Computation of relative or normalized RMSE
     # Divide RMSE by difference between max and min of observed values
     RMSE_T1 = np.sqrt(np.mean(np.power(error_T, 2))) / (np.max(b[::2]) - np.min(b[::2]))
@@ -996,28 +1025,38 @@ def plot_cla(x, A, b, aoa_storage, start_alpha, finish_alpha, degree_cla, degree
     RMSE_Q2 = np.sqrt(np.mean(np.power(error_Q, 2))) / np.std(b[1::2])
 
     # Plot of error for thrust
-    text_T_RMSE = f'Diff RMSE = {np.round(RMSE_T1, 2)} and Std RMSE = {np.round(RMSE_T2, 2)}'
-    text_T_mean = f'Mean = {np.round(average_error_T, 4)}'
+    text_T_RMSE = f'Diff RMSE = {np.round(RMSE_T1, 2)} and NRMSE$_\\tau$ = {np.round(RMSE_T2, 2)}'
+    print(text_T_RMSE)
+    # text_T_mean = f'Mean = {np.round(average_error_T, 4)}'
     plt.figure(figure_number)
     figure_number += 1
-    plt.plot(data_points, error[::2], 'g-', label=text_T_RMSE)
-    plt.plot(data_points, np.repeat(average_error_T, len(data_points)), 'k--', label=text_T_mean)
+    plt.plot(data_points, error[::2], 'g-', alpha=0.5)
+    average_error_T_scientific = np.format_float_scientific(average_error_T,2)
+    index_e = average_error_T_scientific.index("e")
+    T_mean_label_number = average_error_T_scientific[:index_e] + f"$\\cdot$10$^{{{int(average_error_T_scientific[index_e + 1:])}}}$"
+    T_mean_text = f'Mean = {T_mean_label_number} [N]'
+    plt.plot(data_points, np.repeat(average_error_T, len(data_points)), 'k--', label=T_mean_text, linewidth=3)
     plt.xlabel("Data point [-]")
-    plt.ylabel("Approximation thrust error [N]")
-    plt.title("Approximation error thrust")
+    plt.ylabel("$\\epsilon_\\tau$ [N]")
+    # plt.title("Approximation error thrust")
     plt.legend()
     plt.grid(True)
 
     # Plot of error for torque
-    text_Q_RMSE = f'Diff RMSE = {np.round(RMSE_Q1, 2)} and Std RMSE = {np.round(RMSE_Q2, 2)}'
-    text_Q_mean = f'Mean = {np.round(average_error_Q, 4)}'
+    text_Q_RMSE = f'Diff RMSE = {np.round(RMSE_Q1, 2)} and NRMSE$_Q$ = {np.round(RMSE_Q2, 2)}'
+    print(text_Q_RMSE)
+    # text_Q_mean = f'Mean = {np.round(average_error_Q, 4)}'
     plt.figure(figure_number)
     figure_number += 1
-    plt.plot(data_points, error[1::2], 'g-', label=text_Q_RMSE)
-    plt.plot(data_points, np.repeat(average_error_Q, len(data_points)), 'k--', label=text_Q_mean)
+    plt.plot(data_points, error[1::2], 'g-', alpha=0.5)
+    average_error_Q_scientific = np.format_float_scientific(average_error_Q,2)
+    index_e = average_error_Q_scientific.index("e")
+    Q_mean_label_number = average_error_Q_scientific[:index_e] + f"$\\cdot$10$^{{{int(average_error_Q_scientific[index_e + 1:])}}}$"
+    Q_mean_text = f'Mean = {Q_mean_label_number} [Nm]'
+    plt.plot(data_points, np.repeat(average_error_Q, len(data_points)), 'k--', label=Q_mean_text, linewidth=3)
     plt.xlabel("Data point [-]")
-    plt.ylabel("Approximation torque error [Nm]")
-    plt.title("Approximation error torque")
+    plt.ylabel("$\\epsilon_Q$ [Nm]")
+    # plt.title("Approximation error torque")
     plt.grid(True)
     plt.legend()
 
@@ -1058,14 +1097,15 @@ def plot_cla(x, A, b, aoa_storage, start_alpha, finish_alpha, degree_cla, degree
     ax = plt.gca()
     figure_number += 1
     ax.acorr(np.reshape(error_T, [-1, ]), maxlags=None, usevlines=False, normed=True, linestyle="-", marker='',
-             color="b")
-    plt.axhline(y=conf, xmin=-error_T.shape[0], xmax=error_T.shape[0], color="red", linestyle="--")
-    plt.axhline(y=-conf, xmin=-error_T.shape[0], xmax=error_T.shape[0], color="red", linestyle="--")
-    plt.xlabel("Number of lags")
-    plt.ylabel("Error autocorrelation")
-    plt.title("Autocorrelation of model residual: Thrust")
+             color="b", linewidth=3)
+    plt.axhline(y=conf, xmin=-error_T.shape[0], xmax=error_T.shape[0], color="red", linestyle="--", linewidth=3,
+                label="95% confidence bounds")
+    plt.axhline(y=-conf, xmin=-error_T.shape[0], xmax=error_T.shape[0], color="red", linestyle="--", linewidth=3)
+    plt.xlabel("Number of lags [-]")
+    plt.ylabel("Normalised $\\epsilon_\\tau$ autocorrelation [-]")
+    # plt.title("Autocorrelation of model residual: Thrust")
     plt.grid(True)
-    plt.legend()
+    plt.legend(loc='upper right')
 
     ## Plot corresponding to the torque
     # plt.figure(figure_number)
@@ -1084,14 +1124,15 @@ def plot_cla(x, A, b, aoa_storage, start_alpha, finish_alpha, degree_cla, degree
     ax = plt.gca()
     figure_number += 1
     ax.acorr(np.reshape(error_Q, [-1, ]), maxlags=None, usevlines=False, normed=True, linestyle="-", marker='',
-             color="blue")
-    plt.axhline(y=conf, xmin=-error_Q.shape[0], xmax=error_Q.shape[0], color="red", linestyle="--")
-    plt.axhline(y=-conf, xmin=-error_Q.shape[0], xmax=error_Q.shape[0], color="red", linestyle="--")
-    plt.xlabel("Number of lags")
-    plt.ylabel("Error autocorrelation")
-    plt.title("Autocorrelation of model residual: Torque")
+             color="blue", linewidth=3)
+    plt.axhline(y=conf, xmin=-error_Q.shape[0], xmax=error_Q.shape[0], color="red", linestyle="--", linewidth=3,
+                label="95% confidence bounds")
+    plt.axhline(y=-conf, xmin=-error_Q.shape[0], xmax=error_Q.shape[0], color="red", linestyle="--", linewidth=3)
+    plt.xlabel("Number of lags [-]")
+    plt.ylabel("Normalised $\\epsilon_Q$ autocorrelation [-]")
+    # plt.title("Autocorrelation of model residual: Torque")
     plt.grid(True)
-    plt.legend()
+    plt.legend(loc='upper right')
 
     # Plot of the angles of attack seen by each of the selected blade sections. It is represented as a box plot such
     # that it can be seen the average angle of attack as well as the range of alphas seen by its section.
@@ -1128,7 +1169,7 @@ def plot_cla(x, A, b, aoa_storage, start_alpha, finish_alpha, degree_cla, degree
             ax = plt.gca()
             figure_number += 1
             plt.boxplot(np.degrees(aoa_vectors), showfliers=False, patch_artist=True)
-            ax.xaxis.set_major_locator(MultipleLocator(5))
+            ax.xaxis.set_major_locator(MultipleLocator(10))
             ax.xaxis.set_major_formatter(ScalarFormatter())
             plt.ylabel(r"$\alpha$ [deg]")
             plt.xlabel("Blade section number [-]")
@@ -1170,7 +1211,7 @@ def plot_inputs(inputs_dict):
                 # plt.show()
 
 
-def plot_coeffs_map(coeffs_grid, degree_cla, degree_cda, x_coords, y_coords):
+def plot_coeffs_map(coeffs_grid, degree_cla, degree_cda, x_coords, y_coords, switch_title=True):
     """
     Function to plot the coefficients for different blade discretisations and number of data points
     :param coeffs_grid: identified cl and cd coefficients
@@ -1178,6 +1219,7 @@ def plot_coeffs_map(coeffs_grid, degree_cla, degree_cda, x_coords, y_coords):
     :param degree_cda: degree of cd polynomial
     :param x_coords: the values of the x-axis
     :param y_coords: the values of the y-axis
+    :param switch_title: whether the plots should have a title
     :return:
     """
     global figure_number
@@ -1191,13 +1233,15 @@ def plot_coeffs_map(coeffs_grid, degree_cla, degree_cda, x_coords, y_coords):
     y_coords_mesh = np.tile(np.reshape(y_coords_edges, [-1, 1]), (1, len(x_coords) + 1))
 
     # Plot the cl coefficients
-    coeff_plotter(coeffs_grid[:, :, :degree_cla+1], degree_cla, "lift", x_coords_mesh, y_coords_mesh, gradient=False)
+    coeff_plotter(coeffs_grid[:, :, :degree_cla+1], degree_cla, "lift", x_coords_mesh, y_coords_mesh, gradient=False,
+                  cbar_label_func=lambda c: f"$x_{c} \; [-]$", switch_title=switch_title)
 
     # Plot the cd coeffs
-    coeff_plotter(coeffs_grid[:, :, degree_cla+1:], degree_cda, "drag", x_coords_mesh, y_coords_mesh, gradient=False)
+    coeff_plotter(coeffs_grid[:, :, degree_cla+1:], degree_cda, "drag", x_coords_mesh, y_coords_mesh, gradient=False,
+                  cbar_label_func=lambda c: f"$y_{c} \; [-]$", switch_title=switch_title)
 
 
-def plot_derivative_coeffs_map(coeffs_grid, degree_cla, degree_cda, x_coords, y_coords):
+def plot_derivative_coeffs_map(coeffs_grid, degree_cla, degree_cda, x_coords, y_coords, switch_title=True):
     """
     Function to plot the percentage change of the coefficients with respect to changes in the number of samples and the
     blade discretisation
@@ -1206,6 +1250,7 @@ def plot_derivative_coeffs_map(coeffs_grid, degree_cla, degree_cda, x_coords, y_
     :param degree_cda: degree of cd polynomial
     :param x_coords: the values of the x-axis
     :param y_coords: the values of the y-axis
+    :param switch_title: whether the plots should have a title
     :return:
     """
     # Computation of the axis coords
@@ -1224,53 +1269,180 @@ def plot_derivative_coeffs_map(coeffs_grid, degree_cla, degree_cda, x_coords, y_
 
     # Computation of the derivative coefficients
     # Along the x_axis
-    coeffs_grid_der_x = np.abs((coeffs_grid[:, 1:, :]-coeffs_grid[:, :-1, :]) / \
-                        np.tile(coeffs_grid[:, [-1], :], (1, coeffs_grid.shape[1]-1, 1)) * 100)
-    coeffs_grid_der_y = np.abs((coeffs_grid[1:, :, :] - coeffs_grid[:-1, :, :]) / \
-                        np.tile(coeffs_grid[[-1], :, :], (coeffs_grid.shape[0] - 1, 1, 1)) * 100)
+    coeffs_grid_der_x = (coeffs_grid[:, 1:, :]-coeffs_grid[:, :-1, :]) / \
+                        np.tile(coeffs_grid[:, [-1], :], (1, coeffs_grid.shape[1]-1, 1)) * 100
+    coeffs_grid_der_y = (coeffs_grid[1:, :, :] - coeffs_grid[:-1, :, :]) / \
+                        np.tile(coeffs_grid[[-1], :, :], (coeffs_grid.shape[0] - 1, 1, 1)) * 100
 
     # Derivative along the number of data samples axis
     # Plot the cl coefficients
     coeff_plotter(coeffs_grid_der_x[:, :, :degree_cla+1], degree_cla, "percentage change of the lift",
-                  x_coords_mesh_der_x, y_coords_mesh_der_x, gradient=True)
+                  x_coords_mesh_der_x, y_coords_mesh_der_x, gradient=True, gradient_cb_min=-1, gradient_cb_max=1,
+                  cbar_label_func=lambda c: f"$D_q x_{{{c}}}\; [\\%]$", switch_title=switch_title)
 
     # Plot the cd coeffs
     coeff_plotter(coeffs_grid_der_x[:, :, degree_cla+1:], degree_cda, "percentage change of the drag",
-                  x_coords_mesh_der_x, y_coords_mesh_der_x, gradient=True)
+                  x_coords_mesh_der_x, y_coords_mesh_der_x, gradient=True, gradient_cb_min=-1, gradient_cb_max=1,
+                  cbar_label_func=lambda c: f"$D_q y_{{{c}}}\; [\\%]$", switch_title=switch_title)
 
     # Derivative along the number of blade sections axis
     # Plot the cl coefficients
     coeff_plotter(coeffs_grid_der_y[:, :, :degree_cla+1], degree_cla, "percentage change of the lift",
-                  x_coords_mesh_der_y, y_coords_mesh_der_y, gradient=True)
+                  x_coords_mesh_der_y, y_coords_mesh_der_y, gradient=True, gradient_cb_min=-1, gradient_cb_max=1,
+                  cbar_label_func=lambda c: f"$D_{{n_{{bs}}}} x_{{{c}}}\; [\\%]$", switch_title=switch_title)
 
     # Plot the cd coeffs
     coeff_plotter(coeffs_grid_der_y[:, :, degree_cla+1:], degree_cda, "percentage change of the drag",
-                  x_coords_mesh_der_y, y_coords_mesh_der_y, gradient=True)
+                  x_coords_mesh_der_y, y_coords_mesh_der_y, gradient=True, gradient_cb_min=-1, gradient_cb_max=1,
+                  cbar_label_func=lambda c: f"$D_{{n_{{bs}}}} y_{{{c}}}\; [\\%]$", switch_title=switch_title)
 
     # Using the maximum
     # Plot the maximum values from the coefficients axis
-    coeffs_grid_der_x_max = np.reshape(np.amax(coeffs_grid_der_x, axis=2),
+    coeffs_grid_der_x_max = np.reshape(np.amax(np.abs(coeffs_grid_der_x), axis=2),
                                        [coeffs_grid_der_x.shape[0], coeffs_grid_der_x.shape[1], 1])
-    coeffs_grid_der_y_max = np.reshape(np.amax(coeffs_grid_der_y, axis=2),
+    coeffs_grid_der_y_max = np.reshape(np.amax(np.abs(coeffs_grid_der_y), axis=2),
                                        [coeffs_grid_der_y.shape[0], coeffs_grid_der_y.shape[1], 1])
 
     coeff_plotter(coeffs_grid_der_x_max, 0, "percentage change of the maximum",
-                  x_coords_mesh_der_x, y_coords_mesh_der_x, gradient=True)
+                  x_coords_mesh_der_x, y_coords_mesh_der_x, gradient=True, switch_title=switch_title)
 
     coeff_plotter(coeffs_grid_der_y_max, 0, "percentage change of the maximum",
-                  x_coords_mesh_der_y, y_coords_mesh_der_y, gradient=True)
+                  x_coords_mesh_der_y, y_coords_mesh_der_y, gradient=True, switch_title=switch_title)
 
     # Final plot merging both
     coeffs_grid_der_max = np.maximum(coeffs_grid_der_x_max[1:, :, :], coeffs_grid_der_y_max[:, 1:, :])
     coeff_plotter(coeffs_grid_der_max, 0, "percentage change of the maximum",
-                  x_coords_mesh_der_x[1:, :], y_coords_mesh_der_y[:, 1:], gradient=True)
+                  x_coords_mesh_der_x[1:, :], y_coords_mesh_der_y[:, 1:], gradient=True, switch_title=switch_title)
 
     coeffs_grid_der_sum = coeffs_grid_der_x_max[1:, :, :] + coeffs_grid_der_y_max[:, 1:, :]
     coeff_plotter(coeffs_grid_der_sum, 0, "percentage change of the sum",
-                  x_coords_mesh_der_x[1:, :], y_coords_mesh_der_y[:, 1:], gradient=True)
+                  x_coords_mesh_der_x[1:, :], y_coords_mesh_der_y[:, 1:], gradient=True, switch_title=switch_title)
 
 
-def coeff_plotter(coeffs_grid_local, degree, coeff_type, X, Y, gradient=False):
+def plot_MA_derivative_coeffs_map(coeffs_grid, degree_cla, degree_cda, x_coords, y_coords, horizon_length, threshold,
+                                  switch_title=True):
+    """
+    Function to plot the percentage change of the coefficients with respect to changes in the number of samples and the
+    blade discretisation
+    :param coeffs_grid: identified cl and cd coefficients
+    :param degree_cla: degree of cl polynomial
+    :param degree_cda: degree of cd polynomial
+    :param x_coords: the values of the x-axis
+    :param y_coords: the values of the y-axis
+    :param horizon_length: length of the horizon used for the moving average
+    :param threshold: the threshold used to determine the right number of data points and number of blades
+    :param switch_title: whether the plots need to have title
+    :return:
+    """
+    # Computation of the axis coords
+    x_step = x_coords[1]-x_coords[0]
+    y_step = y_coords[1]-y_coords[0]
+
+    x_coords_edges = np.arange(x_coords[0] - x_step / 2, x_coords[-1] + x_step, x_step)
+    x_coords_edges_mod = np.arange(x_coords[1] - x_step / 2, x_coords[-1] + x_step, x_step)
+    y_coords_edges = np.arange(y_coords[0] - y_step / 2, y_coords[-1] + y_step, y_step)
+    y_coords_edges_mod = np.arange(y_coords[1] - y_step / 2, y_coords[-1] + y_step, y_step)
+
+    x_coords_mesh_der_x = np.tile(np.reshape(x_coords_edges_mod, [1, -1]), (len(y_coords) + 1, 1))
+    x_coords_mesh_der_y = np.tile(np.reshape(x_coords_edges, [1, -1]), (len(y_coords), 1))
+    y_coords_mesh_der_x = np.tile(np.reshape(y_coords_edges, [-1, 1]), (1, len(x_coords)))
+    y_coords_mesh_der_y = np.tile(np.reshape(y_coords_edges_mod, [-1, 1]), (1, len(x_coords) + 1))
+
+    # Computation of the derivative coefficients
+    # Along the x_axis
+    coeffs_grid_der_x = (coeffs_grid[:, 1:, :] - coeffs_grid[:, :-1, :]) / np.tile(coeffs_grid[:, [-1], :], (1, coeffs_grid.shape[1]-1, 1)) * 100
+    MA_coeffs_grid_der_x = np.zeros(coeffs_grid_der_x.shape)
+    for row in range(coeffs_grid_der_x.shape[0]):
+        for column in range(coeffs_grid_der_x.shape[1]):
+            for coeff in range(coeffs_grid_der_x.shape[2]):
+                element = np.mean(coeffs_grid_der_x[row, max(0, column - horizon_length):column + 1, coeff])
+                MA_coeffs_grid_der_x[row, column, coeff] = element
+
+    coeffs_grid_der_y = (coeffs_grid[1:, :, :] - coeffs_grid[:-1, :, :]) / np.tile(coeffs_grid[[-1], :, :], (coeffs_grid.shape[0] - 1, 1, 1)) * 100
+    MA_coeffs_grid_der_y = np.zeros(coeffs_grid_der_y.shape)
+    for row in range(coeffs_grid_der_y.shape[0]):
+        for column in range(coeffs_grid_der_y.shape[1]):
+            for coeff in range(coeffs_grid_der_y.shape[2]):
+                element = np.mean(coeffs_grid_der_y[row, max(0, column - horizon_length):column + 1, coeff])
+                MA_coeffs_grid_der_y[row, column, coeff] = element
+
+    # Derivative along the number of data samples axis
+    # Plot the cl coefficients
+    coeff_plotter(MA_coeffs_grid_der_x[:, :, :degree_cla+1], degree_cla, "MA percentage change of the lift (q derivative)",
+                  x_coords_mesh_der_x, y_coords_mesh_der_x, gradient=True, gradient_cb_min=-1, gradient_cb_max=1,
+                  cbar_label_func=lambda c: f"$MA (D_q x_{{{c}}},10)\; [\\%]$",
+                  switch_title=switch_title)
+
+    # Plot the cd coeffs
+    coeff_plotter(MA_coeffs_grid_der_x[:, :, degree_cla+1:], degree_cda, "MA percentage change of the drag (q derivative)",
+                  x_coords_mesh_der_x, y_coords_mesh_der_x, gradient=True, gradient_cb_min=-1, gradient_cb_max=1,
+                  cbar_label_func=lambda c: f"$MA (D_q y_{{{c}}},10)\; [\\%]$",
+                  switch_title=switch_title)
+
+    # Derivative along the number of blade sections axis
+    # Plot the cl coefficients
+    coeff_plotter(MA_coeffs_grid_der_y[:, :, :degree_cla+1], degree_cla, "MA percentage change of the lift (n_bs derivative)",
+                  x_coords_mesh_der_y, y_coords_mesh_der_y, gradient=True, gradient_cb_min=-1, gradient_cb_max=1,
+                  cbar_label_func=lambda c: f"$MA (D_{{n_{{bs}}}} x_{{{c}}},10)\; [\\%]$",
+                  switch_title=switch_title)
+
+    # Plot the cd coeffs
+    coeff_plotter(MA_coeffs_grid_der_y[:, :, degree_cla+1:], degree_cda, "MA percentage change of the drag (n_bs derivative)",
+                  x_coords_mesh_der_y, y_coords_mesh_der_y, gradient=True, gradient_cb_min=-1, gradient_cb_max=1,
+                  cbar_label_func=lambda c:f"$MA (D_{{n_{{bs}}}} y_{{{c}}},10)\; [\\%]$",
+                  switch_title=switch_title)
+
+    # Using the maximum
+    # Plot the maximum values from the coefficients axis
+    MA_coeffs_grid_der_x_max = np.reshape(np.amax(np.abs(MA_coeffs_grid_der_x), axis=2),
+                                          [coeffs_grid_der_x.shape[0], coeffs_grid_der_x.shape[1], 1])
+    MA_coeffs_grid_der_y_max = np.reshape(np.amax(np.abs(MA_coeffs_grid_der_y), axis=2),
+                                          [coeffs_grid_der_y.shape[0], coeffs_grid_der_y.shape[1], 1])
+
+    coeff_plotter(MA_coeffs_grid_der_x_max, 0, "percentage change of the maximum",
+                  x_coords_mesh_der_x, y_coords_mesh_der_x, gradient=True,
+                  cbar_label_func=lambda c: "$g_q(q, n_{bs})\; [\\%]$",
+                  switch_title=switch_title)
+
+    coeff_plotter(MA_coeffs_grid_der_y_max, 0, "percentage change of the maximum",
+                  x_coords_mesh_der_y, y_coords_mesh_der_y, gradient=True,
+                  cbar_label_func=lambda c: "$g_{n_{bs}}(q, n_{bs})\; [\\%]$",
+                  switch_title=switch_title)
+
+    # Computing the average along each of the axes
+    g_qa = np.mean(np.reshape(MA_coeffs_grid_der_x_max, [MA_coeffs_grid_der_x_max.shape[0], MA_coeffs_grid_der_x_max.shape[1]]), axis=0)
+    g_nbs = np.mean(np.reshape(MA_coeffs_grid_der_y_max, [MA_coeffs_grid_der_y_max.shape[0], MA_coeffs_grid_der_y_max.shape[1]]), axis=1)
+    print(MA_coeffs_grid_der_x_max.shape, g_qa.shape)
+
+    global figure_number
+    plt.figure(figure_number)
+    figure_number += 1
+    plt.plot(x_coords[1:], g_qa, linewidth=4)
+    plt.axhline(0.1, 0, x_coords[-1] + (x_coords[-1] - x_coords[-2]), color="black", alpha=0.6, linestyle="dashed", linewidth=4)
+    ideal_point_g_qa_indeces = np.where(g_qa < threshold)[0]
+    print(ideal_point_g_qa_indeces)
+    if ideal_point_g_qa_indeces.shape[0] != 0:
+        index = ideal_point_g_qa_indeces[0]
+        plt.plot(x_coords[1+index], g_qa[index], "ro", markersize=10)
+    plt.xlabel("q [-]")
+    plt.ylabel("$h_q$(q) [%]")
+    plt.grid(True)
+
+    plt.figure(figure_number)
+    figure_number += 1
+    plt.plot(y_coords[1:], g_nbs, linewidth=4)
+    plt.axhline(0.1, 0, y_coords[-1] + (y_coords[-1] - y_coords[-2]), color="black", alpha=0.6, linestyle="dashed", linewidth=4)
+    ideal_point_g_nbs_indeces = np.where(g_nbs < threshold)[0]
+    if ideal_point_g_nbs_indeces.shape[0] != 0:
+        index = ideal_point_g_nbs_indeces[0]
+        plt.plot(y_coords[1+index], g_nbs[index], "ro", markersize=10)
+    plt.xlabel("$n_{bs}$ [-]")
+    plt.ylabel("$h_{n_{bs}}$($n_{bs}$) [%]")
+    plt.grid(True)
+
+
+def coeff_plotter(coeffs_grid_local, degree, coeff_type, X, Y, gradient=False, gradient_cb_min=0, gradient_cb_max=1,
+                  cbar_label_func=lambda c:"", switch_title=True):
     """
     Used to create a colour map of the lift or drag coefficient
     :param coeffs_grid_local: identified cl and cd coefficients
@@ -1279,21 +1451,24 @@ def coeff_plotter(coeffs_grid_local, degree, coeff_type, X, Y, gradient=False):
     :param X: the values of the x-axis
     :param Y: the values of the y-axis
     :param gradient: whether the function is plotting a gradient
+    :param gradient_cb_min: the lower bound for the colorbar
+    :param gradient_cb_max: the higher bound for the colorbar
+    :param cbar_label: the label for the colorbar
     :return:
     """
     global figure_number
     fig = plt.figure(figure_number)
     figure_number += 1
-    axes = fig.subplots(degree + 1, 1, gridspec_kw={'wspace': 0.5, 'hspace': 0.5})
+    axes = fig.subplots(degree + 1, 1, gridspec_kw={'wspace': 0.5, 'hspace': 0.7})
     counter = 0
     for ax in np.array([axes]).flatten():
         if gradient:
-            im = ax.pcolormesh(X, Y, coeffs_grid_local[:, :, counter], vmin=0, vmax=1, cmap="viridis")
+            im = ax.pcolormesh(X, Y, coeffs_grid_local[:, :, counter], vmin=gradient_cb_min, vmax=gradient_cb_max, cmap="viridis")
         else:
             im = ax.pcolormesh(X, Y, coeffs_grid_local[:, :, counter], cmap="viridis")
         ax.set_xlabel("q [-]")
         ax.set_ylabel("$n_{bs}$ [-]")
-        ax.yaxis.set_major_locator(MultipleLocator(100))
+        ax.yaxis.set_major_locator(MultipleLocator(200))
         ax.yaxis.set_minor_locator(IndexLocator(base=Y[1, 0]-Y[0, 0], offset=0))
         ax.xaxis.set_minor_locator(IndexLocator(base=X[0, 1]-X[0, 0], offset=0))
         ax.grid(b=True, which='minor')
@@ -1301,12 +1476,14 @@ def coeff_plotter(coeffs_grid_local, degree, coeff_type, X, Y, gradient=False):
         # ax.set_xlim([1000, Y[-1, -1]])
         divider = make_axes_locatable(ax)
         cax = divider.append_axes('right', size='5%', pad=0.05)
-        fig.colorbar(im, cax=cax, orientation='vertical')
+        fig.colorbar(im, cax=cax, orientation='vertical', label=cbar_label_func(counter))
+        # cbar.ax.tick_params(labelsize=)
         counter += 1
-    fig.suptitle(f"Value of the {coeff_type} coefficients wrt. the number of samples and blade sections")
+    if switch_title:
+        fig.suptitle(f"Value of the {coeff_type} coefficients wrt. the number of samples and blade sections")
 
 
-def plot_FM(t, rotation_angle, F, M):
+def plot_FM(t, rotation_angle, F, M, mass_aero="m"):
     """
     Method to plot the changes in force and moments due to the failure of a blade
     :param t: time vector
@@ -1326,27 +1503,97 @@ def plot_FM(t, rotation_angle, F, M):
     plt.title("Evolution of propeller angle")
     plt.grid(True)
 
-    f_f, ax_f_lst = plt.subplots(3, 1)
-    f_f.suptitle("Evolution of Forces")
-    f_m, ax_m_lst = plt.subplots(3, 1)
-    f_m.suptitle("Evolution of Moments")
+    f_f, ax_f_lst = plt.subplots(3, 1, sharex=True, gridspec_kw={'wspace': 0.5,'hspace': 0.3})
+    # f_f.suptitle("Evolution of Forces")
+    f_m, ax_m_lst = plt.subplots(3, 1, sharex=True, gridspec_kw={'wspace': 0.5,'hspace': 0.3})
+    # f_m.suptitle("Evolution of Moments")
     figure_number += 2
+    axis_names = ["x", "y", "z"]
     for i in range(3):
         ax_f = ax_f_lst[i]
-        ax_f.plot(t, F[i, :])
-        ax_f.set_xlabel("Time [s]")
-        ax_f.set_ylabel("Force [N]")
+        ax_f.plot(t, F[i, :], linewidth=3)
+
+        if mass_aero == "a" or mass_aero == "m":
+            ax_f.set_ylabel(f"$F^B_{{{mass_aero}_{axis_names[i]}}}$ [N]")
+        else:
+            ax_f.set_ylabel(f"$\Delta F^B_{{{axis_names[i]}}}$ [N]")
+        ax_f.ticklabel_format(axis="y", style="sci", scilimits=(-2, -7))
         ax_f.grid(True)
         f_f.tight_layout()
 
         ax_m = ax_m_lst[i]
-        ax_m.plot(t, M[i, :])
-        ax_m.set_xlabel("Time [s]")
-        ax_m.set_ylabel("Moment [Nm]")
+        ax_m.plot(t, M[i, :], linewidth=3)
+
+        if mass_aero == "a" or mass_aero == "m":
+            ax_m.set_ylabel(f"$M^B_{{{mass_aero}_{axis_names[i]}}}$ [Nm]")
+        else:
+            ax_m.set_ylabel(f"$\Delta M^B_{{{axis_names[i]}}}$ [Nm]")
+        ax_m.ticklabel_format(axis="y", style="sci", scilimits=(-2, -7))
         ax_m.grid(True)
         f_m.tight_layout()
+    ax_f.set_xlabel("Time [s]")
+    ax_m.set_xlabel("Time [s]")
+
+    for axs in ax_f_lst:
+        axs.yaxis.set_label_coords(-0.11, 0.5)
+
+    for axs in ax_m_lst:
+        axs.yaxis.set_label_coords(-0.09, 0.5)
     # plt.show()
 
+
+def plot_FM_multiple(t, F, M, mass_aero="m", x_axis_label="Blade damage [%]"):
+    """
+    Method to plot the changes in force and moments due to the failure of a blade
+    :param t: time vector
+    :param F: 3D vector containing the forces
+    :param M: 3D vector containing the moments
+    :param x_axis_label: the label of the x axis
+    :return:
+    """
+    global figure_number
+
+    f_f, ax_f_lst = plt.subplots(3, 1, sharex=True, gridspec_kw={'wspace': 0.5,'hspace': 0.3})
+    # f_f.suptitle("Evolution of Forces")
+    f_m, ax_m_lst = plt.subplots(3, 1, sharex=True, gridspec_kw={'wspace': 0.5,'hspace': 0.3})
+    # f_m.suptitle("Evolution of Moments")
+    figure_number += 2
+    axis_names = ["x", "y", "z"]
+    number_curves = F.shape[2]
+    for i in range(3):
+        for j in range(number_curves):
+            ax_f = ax_f_lst[i]
+            ax_f.plot(t, F[i, :, j], linewidth=3)
+
+            if mass_aero == "a" or mass_aero == "m":
+                ax_f.set_ylabel(f"$F^B_{{{mass_aero}_{axis_names[i]}}}$ [N]")
+            elif mass_aero == "b":
+                ax_f.set_ylabel(f"$F^B_{{._{axis_names[i]}}}$ [N]")
+            else:
+                ax_f.set_ylabel(f"$\Delta F^B_{{{axis_names[i]}}}$ [N]")
+            ax_f.ticklabel_format(axis="y", style="sci", scilimits=(-2, -7))
+            ax_f.grid(True)
+            f_f.tight_layout()
+
+            ax_m = ax_m_lst[i]
+            ax_m.plot(t, M[i, :, j], linewidth=3)
+
+            if mass_aero == "a" or mass_aero == "m":
+                ax_m.set_ylabel(f"$M^B_{{{mass_aero}_{axis_names[i]}}}$ [Nm]")
+            elif mass_aero == "b":
+                ax_m.set_ylabel(f"$M^B_{{._{axis_names[i]}}}$ [Nm]")
+            else:
+                ax_m.set_ylabel(f"$\Delta M^B_{{{axis_names[i]}}}$ [Nm]")
+            ax_m.ticklabel_format(axis="y", style="sci", scilimits=(-2, -7))
+            ax_m.grid(True)
+            f_m.tight_layout()
+    ax_f.set_xlabel(x_axis_label)
+    ax_m.set_xlabel(x_axis_label)
+    for axs in ax_f_lst:
+        axs.yaxis.set_label_coords(-0.06, 0.5)
+
+    for axs in ax_m_lst:
+        axs.yaxis.set_label_coords(-0.06, 0.5)
 
 def plot_coeffs_params_blade_contribution(LS_terms, b):
     """

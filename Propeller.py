@@ -257,10 +257,11 @@ class Propeller:
         """
         pqr = np.array([[0], [0], [0]])
         w = random.uniform(min_w, max_w)
-        sign = 1 if random.random() < 0.5 else -1
+        # sign = 1 if random.random() < 0.5 else -1
         # va_local = random.uniform(max(abs(w), 2), va)  # new
+        # u = sign * np.sqrt(va_local ** 2 - w ** 2)  # new
         # u = sign * np.sqrt(va ** 2 - w ** 2)  # new
-        u = sign * random.uniform(-3, 3)
+        u = random.uniform(-3, 3)
         body_velocity = np.array([[u], [0], [w]])
         omega = random.uniform(300, 1256+1)  # [rad/s]
         self.rotation_angle = random.uniform(0, 2 * np.pi)
@@ -335,13 +336,13 @@ class Propeller:
 
             # Compute the terms corresponding to the A matrix of LS
             LS_terms_blades = [np.zeros((2, degree_cla + degree_cda + 2))] * len(self.blades)
-            if switch_avg_rot:
+            if not switch_avg_rot:
                 rot_angles = [0]
                 n_rot_steps = 1
             for rot_angle in rot_angles:
                 blade_number = 0
                 for blade in self.blades:
-                    if switch_avg_rot:
+                    if not switch_avg_rot:
                         rot_angle = self.rotation_angle
                     LS_terms, aoa_storage = blade.compute_LS_params(number_sections, degree_cla, degree_cda, omega,
                                                                     rot_angle, self.propeller_velocity,
@@ -377,49 +378,56 @@ class Propeller:
         V_inf = np.linalg.norm(self.propeller_velocity)  # the velocity seen by the propeller
         # V_xy = np.sqrt(
         #     self.propeller_velocity[0] ** 2 + self.propeller_velocity[1] ** 2)  # the velocity projected in the xy plane
-        tpp_V_angle = np.arcsin(-self.propeller_velocity[2] / V_inf)  # the angle shaped by the tip path plane and the velocity
+        if V_inf != 0:
+            tpp_V_angle = np.arcsin(-self.propeller_velocity[2] / V_inf)  # the angle shaped by the tip path plane and the velocity
+        else:
+            tpp_V_angle = 0
 
         # Function to minimize, initial condition and bounds
         min_func = lambda x: abs(T - 2 * rho * A * x[0] * np.sqrt((V_inf * np.cos(tpp_V_angle)) ** 2 +
                                                                   (V_inf * np.sin(tpp_V_angle) + x[0]) ** 2))
 
         # # Alternative approach with own gradient descend function. Same result and better time
-        # min_func_2 = lambda x: T - 2 * rho * A * x[0] * np.sqrt((V_inf * np.cos(tpp_V_angle)) ** 2 +
-        #                                                         (V_inf * np.sin(tpp_V_angle) + x[0]) ** 2)
-        # der_func = lambda x: (-2 * rho * A * np.sqrt((V_inf * np.cos(tpp_V_angle)) ** 2 + (V_inf * np.sin(tpp_V_angle) + x) ** 2) -
-        #                       2 * rho * A * x * (V_inf * np.sin(tpp_V_angle) + x) /
-        #                       (np.sqrt((V_inf * np.cos(tpp_V_angle)) ** 2 +
-        #                                (V_inf * np.sin(tpp_V_angle) + x) ** 2))) * min_func_2([x]) / min_func([x])
-        x0 = np.array([4.5])
-        bnds = ((0, 20),)
+        min_func_2 = lambda x: T - 2 * rho * A * x[0] * np.sqrt((V_inf * np.cos(tpp_V_angle)) ** 2 +
+                                                                (V_inf * np.sin(tpp_V_angle) + x[0]) ** 2)
+        der_func = lambda x: (-2 * rho * A * np.sqrt((V_inf * np.cos(tpp_V_angle)) ** 2 + (V_inf * np.sin(tpp_V_angle) + x) ** 2) -
+                              2 * rho * A * x * (V_inf * np.sin(tpp_V_angle) + x) /
+                              (np.sqrt((V_inf * np.cos(tpp_V_angle)) ** 2 +
+                                       (V_inf * np.sin(tpp_V_angle) + x) ** 2))) * min_func_2([x]) / min_func([x])
+        # x0 = np.array([4.5])
+        # bnds = ((0, 20),)
 
         # Uniform induced velocity and inflow
         # now_time = time()
-        v0 = minimize(min_func, x0, method='Nelder-Mead', tol=1e-6, options={'disp': False}, bounds=bnds).x[0]
+        # v0 = minimize(min_func, x0, method='Nelder-Mead', tol=1e-6, options={'disp': False}, bounds=bnds).x[0]
         # then_time = time()
         # scipy_time = then_time-now_time
-        # x0 = np.array([4.5])
+        x0 = np.array([4.5])
         # now_time = time()
         # V0_2 = personal_opt(der_func, x0, min_func)
+        v0 = personal_opt(der_func, x0, min_func)[0]
         # then_time = time()
         # personal_time = then_time-now_time
         # if abs(V0_2-v0)>1e-3:
         #     print("hola")
         # print("ERROR_DIFFERENCE = ", V0_2-v0, "TIME = ", scipy_time-personal_time)
         lambda_0 = v0 / (omega * R)
+        if V_inf != 0:
+            # Compute wake skew angle
+            mu_x = V_inf * np.cos(tpp_V_angle) / (omega * R)
+            mu_z = V_inf * np.sin(tpp_V_angle) / (omega * R)
+            Chi = np.arctan(mu_x / (mu_z + lambda_0))
 
-        # Compute wake skew angle
-        mu_x = V_inf * np.cos(tpp_V_angle) / (omega * R)
-        mu_z = V_inf * np.sin(tpp_V_angle) / (omega * R)
-        Chi = np.arctan(mu_x / (mu_z + lambda_0))
+            # Compute kx and ky weighting factors
+            kx = 4.0 / 3.0 * ((1 - np.cos(Chi) - 1.8 * mu_x ** 2) / np.sin(Chi))
+            ky = -2.0 * mu_x
 
-        # Compute kx and ky weighting factors
-        kx = 4.0 / 3.0 * ((1 - np.cos(Chi) - 1.8 * mu_x ** 2) / np.sin(Chi))
-        ky = -2.0 * mu_x
-
-        # Create function for the computation of the linear induced inflow
-        induced_velocity_func = lambda r, psi: lambda_0 * (1 + kx * r * np.cos(psi) + ky * r * np.sin(psi)) * omega * R
-
+            # Create function for the computation of the linear induced inflow
+            induced_velocity_func = lambda r, psi: lambda_0 * (1 + kx * r * np.cos(psi) + ky * r * np.sin(psi)) * omega * R
+        else:
+            induced_velocity_func = lambda r, psi: v0
+        # induced_velocity_func = lambda r, psi: np.zeros(1)
+        # induced_velocity_func = lambda r, psi: 0
         # Dictionary containing the uniform and the linear induced inflow information, namely: the uniform induced
         # inflow (lambda_0), the uniform induced velocity (v0), the induced velocity function and the propeller radius.
         inflow_data = {"lambda_0": lambda_0, "v0": v0, "induced_velocity_func": induced_velocity_func, "R": R}
@@ -429,7 +437,7 @@ class Propeller:
     def compute_thrust_moment(self, number_sections, omega, cla_coeffs, cda_coeffs, body_velocity, pqr,
                               rho=1.225):
         """
-        Method to compute the thrust and the corresponding moment around the propeller hub caused by this forced. This
+        Method to compute the thrust and the corresponding moment around the propeller hub caused by this forces. This
         is done for the remaining and damaged (flown away) blade sections.
         :param number_sections: total number of sections in which a healthy blade is split up
         :param omega: the rotation rate of the propeller
