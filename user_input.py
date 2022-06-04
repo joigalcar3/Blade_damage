@@ -70,16 +70,17 @@ n_rot_steps = 10        # The number of propeller positions used for taking the 
 optimization_method = 'min'   # Whether the opt. method should be Least Squares ("LS") or a scipy.minimization ("min")
 min_method = "SLSQP"   # Nonlinear optimization method used to minimize Ax-b: SLSQP, COBYLA
 file_name_suffix = "mod"
-coefficients_identification = True    # Whether the coefficients need to be identified
+coefficients_identification = False    # Whether the coefficients need to be identified
 switch_chords_twist_plotting = False  # Whether the chord and twist distribution should be plotted
 activate_params_blade_contribution_plotting = False  # Plot that shows how each blade section contributes to the coeffs
 switch_recycle_samples = False  # Whether previous samples should be used
 switch_avg_rot = True   # Switch to activate whether the instantaneous propeller state is used or the rotation average
 switch_constraints = True    # Whether the optimization should be constrained. Only for COBYLA, SLSQP and trust-constr
 switch_coeffs_grid_plot = True if len(n_blade_segment_lst)+len(number_samples_lst) > 2 else False  # Whether to plot cl and cd coeffs wrt the #blade sections and #data points
+switch_plot_mass = False  # if True, the mass time simulation will be plotted
 switch_plot_aero = False  # if True, the aero time simulation will be plotted
 switch_plot_mass_aero = False  # if True, the aero and mass time simulation will be plotted
-switch_plot_mass_aero_blade_percentage = False  # if True, the aero and mass maximum and minimum time simulation values will be plotted wrt blade damage
+switch_plot_mass_aero_blade_percentage = True  # if True, the aero and mass maximum and minimum time simulation values will be plotted wrt blade damage
 
 # Only for COBYLA, SLSQP and trust-constr accept constraints. Equality constraint means that the constraint function
 # result is to be zero whereas inequality means that it is to be non-negative.
@@ -90,10 +91,13 @@ switch_plot_mass_aero_blade_percentage = False  # if True, the aero and mass max
 
 
 # Basic drone state information
-body_velocity = np.array([[0, 0, 0]]).T
+body_velocity = np.array([[3, 0, -1]]).T
 pqr = np.array([[0, 0, 0]]).T
 attitude = np.array([[0, 0, 0]]).T
-omega = 1256          # [rad/s]
+omega = 600          # [rad/s]
+rho = 1.225  # [kg/m^3]
+total_time = 0.25
+dt = 0.0001
 
 # Check that the number of states equals the number of blades
 if len(state_blades) != n_blades:

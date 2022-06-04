@@ -1533,12 +1533,30 @@ def plot_FM(t, rotation_angle, F, M, mass_aero="m"):
         f_m.tight_layout()
     ax_f.set_xlabel("Time [s]")
     ax_m.set_xlabel("Time [s]")
+    f_f.subplots_adjust(left=0.13, top=0.95, right=0.99, bottom=0.13)
+    f_m.subplots_adjust(left=0.13, top=0.95, right=0.99, bottom=0.13)
+
+    f_n_long_y_axis = 0
+    for axs in ax_f_lst:
+        f_n_long_y_axis += sum([j[j.index('.') + 1] != 'e' and j[j.index('.') + 1] != '0' and j[j.index('.') + 1] != '9'
+                                for j in [np.format_float_scientific(i) for i in axs.get_yticks()]])
+
+    m_n_long_y_axis = 0
+    for axs in ax_m_lst:
+        m_n_long_y_axis += sum([j[j.index('.') + 1] != 'e' and j[j.index('.') + 1] != '0' and j[j.index('.') + 1] != '9'
+                                for j in [np.format_float_scientific(i) for i in axs.get_yticks()]])
 
     for axs in ax_f_lst:
-        axs.yaxis.set_label_coords(-0.11, 0.5)
+        if f_n_long_y_axis == 0:
+            axs.yaxis.set_label_coords(-0.05, 0.5)
+        else:
+            axs.yaxis.set_label_coords(-0.095, 0.5)
 
     for axs in ax_m_lst:
-        axs.yaxis.set_label_coords(-0.09, 0.5)
+        if m_n_long_y_axis == 0:
+            axs.yaxis.set_label_coords(-0.05, 0.5)
+        else:
+            axs.yaxis.set_label_coords(-0.095, 0.5)
     # plt.show()
 
 
@@ -1589,11 +1607,30 @@ def plot_FM_multiple(t, F, M, mass_aero="m", x_axis_label="Blade damage [%]"):
             f_m.tight_layout()
     ax_f.set_xlabel(x_axis_label)
     ax_m.set_xlabel(x_axis_label)
+    f_f.subplots_adjust(left=0.13, top=0.95, right=0.99, bottom=0.13)
+    f_m.subplots_adjust(left=0.13, top=0.95, right=0.99, bottom=0.13)
+
+    f_n_long_y_axis = 0
     for axs in ax_f_lst:
-        axs.yaxis.set_label_coords(-0.06, 0.5)
+        f_n_long_y_axis += sum([j[j.index('.') + 1] != 'e' and j[j.index('.') + 1] != '0' and j[j.index('.') + 1] != '9'
+                                for j in [np.format_float_scientific(i) for i in axs.get_yticks()]])
+
+    m_n_long_y_axis = 0
+    for axs in ax_m_lst:
+        m_n_long_y_axis += sum([j[j.index('.') + 1] != 'e' and j[j.index('.') + 1] != '0' and j[j.index('.') + 1] != '9'
+                                for j in [np.format_float_scientific(i) for i in axs.get_yticks()]])
+
+    for axs in ax_f_lst:
+        if f_n_long_y_axis == 0:
+            axs.yaxis.set_label_coords(-0.05, 0.5)
+        else:
+            axs.yaxis.set_label_coords(-0.095, 0.5)
 
     for axs in ax_m_lst:
-        axs.yaxis.set_label_coords(-0.06, 0.5)
+        if m_n_long_y_axis == 0:
+            axs.yaxis.set_label_coords(-0.05, 0.5)
+        else:
+            axs.yaxis.set_label_coords(-0.095, 0.5)
 
 def plot_coeffs_params_blade_contribution(LS_terms, b):
     """
