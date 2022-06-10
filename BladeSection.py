@@ -38,8 +38,8 @@ class BladeSection:
         self.rho = air_density
 
         self.y = (self.section_number + 1/2)*self.dr + self.radius_hub
-        # self.S = self.c * self.dr
-        self.S = 9.76*10**(-6)
+        self.S = self.c * self.dr
+        # self.S = 9.76*10**(-6)
         self.stall = False
 
     def compute_thrust_moment(self, omega, rotor_speed, position_rotor, cla_coeffs, cda_coeffs, inflow_data):

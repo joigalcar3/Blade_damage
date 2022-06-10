@@ -48,7 +48,7 @@ __status__ = "Development"
 
 # Create the propeller and the blades
 propeller = Propeller(0, n_blades, chord_lengths_rt_lst, length_trapezoids_rt_lst, radius_hub, propeller_mass,
-                      percentage_hub_m, state_blades, angle_first_blade, start_twist, finish_twist,
+                      percentage_hub_m, angle_first_blade, start_twist, finish_twist,
                       broken_percentage=percentage_broken_blade_length, plot_chords_twist=switch_chords_twist_plotting)
 propeller.create_blades()
 
@@ -150,8 +150,10 @@ if coefficients_identification:
 # Compute the thrust, thrust moment, x-y in plane force and torque for a short simulation and then plot it
 # Local input
 if switch_plot_aero:
-    cla_coeffs = np.array([2.93049304e-01,  4.47483030e+00, -1.16086661e+01])
-    cda_coeffs = np.array([9.33962372e-03, -8.02682724e-01,  1.53301563e+01])
+    # cla_coeffs = np.array([2.93049304e-01,  4.47483030e+00, -1.16086661e+01])
+    # cda_coeffs = np.array([9.33962372e-03, -8.02682724e-01,  1.53301563e+01])
+    cla_coeffs = np.array([2.9149e-01, 4.49088e+00, -1.162545e+01])
+    cda_coeffs = np.array([9.4544e-03, -8.1253e-01, 1.55181e+01])
     n_blade_segment = 100
 
     # Computations
@@ -238,7 +240,7 @@ if switch_plot_mass_aero_blade_percentage:
     for percentage_broken_blade_length in percentage_broken_blade_length_lst:
         # Create the propeller and the blades
         propeller = Propeller(0, n_blades, chord_lengths_rt_lst, length_trapezoids_rt_lst, radius_hub, propeller_mass,
-                              percentage_hub_m, state_blades, angle_first_blade, start_twist, finish_twist,
+                              percentage_hub_m, angle_first_blade, start_twist, finish_twist,
                               broken_percentage=percentage_broken_blade_length, plot_chords_twist=False)
         propeller.create_blades()
 

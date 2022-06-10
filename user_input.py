@@ -53,9 +53,8 @@ length_trapezoids_rt_lst = [first_segment_length, second_segment_length]  # list
 
 
 # User input
-percentage_broken_blade_length = 20   # [%]
+percentage_broken_blade_length = [40, 0, 0]   # [%]
 angle_first_blade = 0                 # [deg] angle of the first blade with respect to the propeller coord. frame
-state_blades = [0, 1, 1]              # switches [-]: 1 means that it is healthy
 n_blade_segment_lst = list(np.arange(100, 150, 50))               # [-] number of sections in which a single blade is divided
 number_samples_lst = list(np.arange(16000, 17000, 1000))                 # [-] number of data points for the model identification
 degree_cla = 2                        # [-] degree of the cl alpha curve polynomial
@@ -78,9 +77,9 @@ switch_avg_rot = True   # Switch to activate whether the instantaneous propeller
 switch_constraints = True    # Whether the optimization should be constrained. Only for COBYLA, SLSQP and trust-constr
 switch_coeffs_grid_plot = True if len(n_blade_segment_lst)+len(number_samples_lst) > 2 else False  # Whether to plot cl and cd coeffs wrt the #blade sections and #data points
 switch_plot_mass = False  # if True, the mass time simulation will be plotted
-switch_plot_aero = False  # if True, the aero time simulation will be plotted
+switch_plot_aero = True  # if True, the aero time simulation will be plotted
 switch_plot_mass_aero = False  # if True, the aero and mass time simulation will be plotted
-switch_plot_mass_aero_blade_percentage = True  # if True, the aero and mass maximum and minimum time simulation values will be plotted wrt blade damage
+switch_plot_mass_aero_blade_percentage = False  # if True, the aero and mass maximum and minimum time simulation values will be plotted wrt blade damage
 
 # Only for COBYLA, SLSQP and trust-constr accept constraints. Equality constraint means that the constraint function
 # result is to be zero whereas inequality means that it is to be non-negative.
@@ -95,10 +94,11 @@ body_velocity = np.array([[3, 0, -1]]).T
 pqr = np.array([[0, 0, 0]]).T
 attitude = np.array([[0, 0, 0]]).T
 omega = 600          # [rad/s]
+# body_velocity = np.array([[6.30750292e-05, -1.73107276e-06, -6.45597247e-05]]).T
+# pqr = np.array([[0, 0, 0]]).T
+# attitude = np.array([[0, 0, 0]]).T
+# omega = 890       # [rad/s]
 rho = 1.225  # [kg/m^3]
 total_time = 0.25
 dt = 0.0001
 
-# Check that the number of states equals the number of blades
-if len(state_blades) != n_blades:
-    raise Exception("The number of states does not equal the number of blades.")

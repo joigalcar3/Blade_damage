@@ -49,7 +49,7 @@ class Propeller:
     g = 9.80665
 
     def __init__(self, propeller_number, number_blades, chords, hs, radius_hub, healthy_propeller_mass,
-                 percentage_hub_m, state_blades, angle_first_blade, start_twist, final_twist, broken_percentage=0,
+                 percentage_hub_m, angle_first_blade, start_twist, final_twist, broken_percentage=0,
                  plot_chords_twist=False):
         self.propeller_number = propeller_number
         self.number_blades = number_blades
@@ -58,7 +58,6 @@ class Propeller:
         self.radius_hub = radius_hub
         self.healthy_propeller_mass = healthy_propeller_mass
         self.percentage_hub_m = percentage_hub_m
-        self.state_blades = state_blades
         self.broken_percentage = broken_percentage
         self.angle_first_blade = radians(angle_first_blade)
         self.start_twist = radians(start_twist)
@@ -68,9 +67,26 @@ class Propeller:
         self.blades = []
         self.cg_x = 0
         self.cg_y = 0
-        self.cg_r = 0
+        self.cg_r = None
 
         self.healthy_blade_m = self.healthy_propeller_mass * (1 - self.percentage_hub_m / 100) / self.number_blades
+        self.propeller_mass = None
+
+        self.propeller_velocity = None
+        self.omega = None
+        self.rotation_angle = 0
+
+    def reset_propeller(self, broken_percentage):
+        """
+        Method to reset the propeller to the default values and change its broken degree
+        :return:
+        """
+        self.broken_percentage = broken_percentage
+        self.blades = []
+        self.cg_x = 0
+        self.cg_y = 0
+        self.cg_r = None
+
         self.propeller_mass = None
 
         self.propeller_velocity = None
@@ -91,8 +107,7 @@ class Propeller:
                 bp = self.broken_percentage
             blade = Blade(self.chords, self.hs, self.start_twist, self.final_twist, self.radius_hub,
                           self.SN[self.propeller_number], initial_angle=current_angle,
-                          damaged=not bool(self.state_blades[i]), broken_percentage=bp,
-                          plot_chords_twist=self.plot_chords_twist)
+                          broken_percentage=bp, plot_chords_twist=self.plot_chords_twist)
             self.blades.append(blade)
             current_angle += angle_step
 
@@ -138,6 +153,9 @@ class Propeller:
         :param attitude: the attitude of the drone
         :return:
         """
+        if self.cg_r is None:
+            self.compute_cg_location()
+
         # Centrifugal force
         F_centrifugal = self.propeller_mass * omega ** 2 * self.cg_r
         angle_cg = np.arctan2(self.cg_y, self.cg_x) + self.rotation_angle

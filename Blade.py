@@ -34,7 +34,7 @@ __status__ = "Development"
 class Blade:
 
     def __init__(self, chords, hs, start_twist, final_twist, radius_hub, rotation_direction, initial_angle=0,
-                 damaged=False, broken_percentage=0, plot_chords_twist=False):
+                 broken_percentage=0, plot_chords_twist=False):
         """
         Function that computes a blade area and the location of its cg
         :param broken_percentage: percentage of the blade that is broken from the tip
@@ -53,7 +53,6 @@ class Blade:
         self.radius_hub = radius_hub
         self.rotation_direction = rotation_direction
         self.initial_angle = initial_angle
-        self.damaged = damaged
         self.broken_percentage = broken_percentage
         self.plot_chords_twist = plot_chords_twist
         self.blade_area = None
@@ -64,6 +63,7 @@ class Blade:
         self.blade_sections = []
         self.damaged_blade_sections = []
 
+        self.damaged = broken_percentage != 0
         self.healthy_h = sum(self.healthy_hs)
         self.damaged_h = -1
         if self.damaged:
