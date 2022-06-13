@@ -150,10 +150,6 @@ if coefficients_identification:
 # Compute the thrust, thrust moment, x-y in plane force and torque for a short simulation and then plot it
 # Local input
 if switch_plot_aero:
-    # cla_coeffs = np.array([2.93049304e-01,  4.47483030e+00, -1.16086661e+01])
-    # cda_coeffs = np.array([9.33962372e-03, -8.02682724e-01,  1.53301563e+01])
-    cla_coeffs = np.array([2.9149e-01, 4.49088e+00, -1.162545e+01])
-    cda_coeffs = np.array([9.4544e-03, -8.1253e-01, 1.55181e+01])
     n_blade_segment = 100
 
     # Computations
@@ -184,6 +180,12 @@ if switch_plot_aero:
         plt.figure(i)
         plt.legend(["Mass effects", "Aerodynamic effects"], loc=1)
 
+    # with open("Plot_data_storage/F_aero_v0_0_c.npy", 'wb') as f:
+    #     np.save(f, F_lst_aero)
+    #
+    # with open("Plot_data_storage/M_aero_v0_0_c.npy", 'wb') as f:
+    #     np.save(f, M_lst_aero)
+
     F_aero_V0_0 = np.load("Plot_data_storage/F_aero_v0_0_c.npy")
     M_aero_V0_0 = np.load("Plot_data_storage/M_aero_v0_0_c.npy")
     F_lst_total = np.dstack((F_lst_aero, F_aero_V0_0))
@@ -197,8 +199,6 @@ if switch_plot_aero:
 # Put all the forces and moments together
 # Local input
 if switch_plot_mass_aero:
-    cla_coeffs = np.array([2.93049304e-01,  4.47483030e+00, -1.16086661e+01])
-    cda_coeffs = np.array([9.33962372e-03, -8.02682724e-01,  1.53301563e+01])
     n_blade_segment = 100
 
     # Computations
@@ -227,8 +227,6 @@ if switch_plot_mass_aero:
 # ----------------------------------------------------------------------------------------------------------------------
 # Obtain the range of values for different degrees of blade damage
 if switch_plot_mass_aero_blade_percentage:
-    cla_coeffs = np.array([2.93049304e-01,  4.47483030e+00, -1.16086661e+01])
-    cda_coeffs = np.array([9.33962372e-03, -8.02682724e-01,  1.53301563e+01])
     n_blade_segment = 100
     dt = 0.01
     percentage_broken_blade_length_lst = list(range(0, 105, 5))
@@ -239,9 +237,10 @@ if switch_plot_mass_aero_blade_percentage:
     broken_percentage_counter = 0
     for percentage_broken_blade_length in percentage_broken_blade_length_lst:
         # Create the propeller and the blades
+        bp = [percentage_broken_blade_length, 0, 0]
         propeller = Propeller(0, n_blades, chord_lengths_rt_lst, length_trapezoids_rt_lst, radius_hub, propeller_mass,
                               percentage_hub_m, angle_first_blade, start_twist, finish_twist,
-                              broken_percentage=percentage_broken_blade_length, plot_chords_twist=False)
+                              broken_percentage=bp, plot_chords_twist=False)
         propeller.create_blades()
 
         # ----------------------------------------------------------------------------------------------------------------------
@@ -308,14 +307,18 @@ if switch_plot_mass_aero_blade_percentage:
     fig.subplots_adjust(left=0.13, top=0.95, right=0.99, bottom=0.13)
     plt.grid(True)
 
+    for i in plt.get_fignums():
+        plt.figure(i)
+        plt.legend(["Upper limit", "Lower limit"], loc=6)
+
 # M_complete = np.dstack((M_broken_percentage_min, M_broken_percentage_max))
 # with open("Plot_data_storage/complete_c.npy", 'wb') as f:
 #     np.save(f, M_complete)
 
 M_complete = np.load("Plot_data_storage/complete_c.npy")
-M_S = np.load("Plot_data_storage/no_S_c.npy")
-M_vi = np.load("Plot_data_storage/no_vi_c.npy")
-M_S_vi = np.load("Plot_data_storage/no_S_no_vi_c.npy")
+M_S = np.load("Plot_data_storage/no_S_c.npy")   # The blade section area is redefined in BladeSection
+M_vi = np.load("Plot_data_storage/no_vi_c.npy")   # The vi is made 0 in Propeller
+M_S_vi = np.load("Plot_data_storage/no_S_no_vi_c.npy")  # Both of above
 
 fig = plt.figure(124)
 

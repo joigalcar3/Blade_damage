@@ -182,7 +182,7 @@ class BladeSection:
 
         # The total velocity experienced by the blade cross section is the sum of the velocity components in the x
         # and z directions
-        V_z = rotor_speed[2] + vi
+        V_z = -rotor_speed[2] + vi
         V_total = np.sqrt(Vl**2+V_z**2)
 
         return Vl, V_total

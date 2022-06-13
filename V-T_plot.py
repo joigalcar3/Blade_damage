@@ -9,7 +9,7 @@ from itertools import compress
 matplotlib.use('TkAgg')
 
 propeller = Propeller(0, n_blades, chord_lengths_rt_lst, length_trapezoids_rt_lst, radius_hub, propeller_mass,
-                      percentage_hub_m, state_blades, angle_first_blade, start_twist, finish_twist,
+                      percentage_hub_m, angle_first_blade, start_twist, finish_twist,
                       broken_percentage=percentage_broken_blade_length, plot_chords_twist=False)
 propeller.create_blades()
 

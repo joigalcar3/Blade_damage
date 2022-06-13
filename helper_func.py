@@ -934,7 +934,7 @@ def plot_cla(x, A, b, aoa_storage, start_alpha, finish_alpha, degree_cla, degree
         if i != degree_cla:
             if x[i+1].item() > 0:
                 title += '+'
-    plt.figure(figure_number)
+    fig = plt.figure(figure_number)
     figure_number += 1
     plt.plot(alphas, cls, 'r-', linewidth=4)
     plt.xlabel("$\\alpha$ [deg]")
@@ -950,6 +950,7 @@ def plot_cla(x, A, b, aoa_storage, start_alpha, finish_alpha, degree_cla, degree
     ax.yaxis.set_major_locator(MultipleLocator(y_discretisation))
     ax.xaxis.set_major_locator(MultipleLocator(5))
     plt.grid(True)
+    fig.subplots_adjust(left=0.13, top=0.95, right=0.99, bottom=0.13)
 
     # Plot the cd-alpha curve
     title = "Cd-alpha curve: Cd = "
@@ -958,7 +959,7 @@ def plot_cla(x, A, b, aoa_storage, start_alpha, finish_alpha, degree_cla, degree
         if i != degree_cla + degree_cda + 1:
             if x[i+1].item() > 0:
                 title += '+'
-    plt.figure(figure_number)
+    fig = plt.figure(figure_number)
     figure_number += 1
     plt.plot(alphas, cds, 'r-', linewidth=4)
     plt.xlabel("$\\alpha$ [deg]")
@@ -974,6 +975,7 @@ def plot_cla(x, A, b, aoa_storage, start_alpha, finish_alpha, degree_cla, degree
     ax.yaxis.set_major_locator(MultipleLocator(y_discretisation))
     ax.xaxis.set_major_locator(MultipleLocator(5))
     plt.grid(True)
+    fig.subplots_adjust(left=0.13, top=0.95, right=0.99, bottom=0.13)
 
     # Compare the results predicted by multiplying A and x, with respect to the observations in b for the thrust
     b_approx = np.reshape(np.matmul(A, x), [-1,1])
@@ -1028,7 +1030,7 @@ def plot_cla(x, A, b, aoa_storage, start_alpha, finish_alpha, degree_cla, degree
     text_T_RMSE = f'Diff RMSE = {np.round(RMSE_T1, 2)} and NRMSE$_\\tau$ = {np.round(RMSE_T2, 2)}'
     print(text_T_RMSE)
     # text_T_mean = f'Mean = {np.round(average_error_T, 4)}'
-    plt.figure(figure_number)
+    fig = plt.figure(figure_number)
     figure_number += 1
     plt.plot(data_points, error[::2], 'g-', alpha=0.5)
     average_error_T_scientific = np.format_float_scientific(average_error_T,2)
@@ -1039,14 +1041,15 @@ def plot_cla(x, A, b, aoa_storage, start_alpha, finish_alpha, degree_cla, degree
     plt.xlabel("Data point [-]")
     plt.ylabel("$\\epsilon_\\tau$ [N]")
     # plt.title("Approximation error thrust")
-    plt.legend()
+    plt.legend(loc=3)
     plt.grid(True)
+    fig.subplots_adjust(left=0.13, top=0.95, right=0.99, bottom=0.13)
 
     # Plot of error for torque
     text_Q_RMSE = f'Diff RMSE = {np.round(RMSE_Q1, 2)} and NRMSE$_Q$ = {np.round(RMSE_Q2, 2)}'
     print(text_Q_RMSE)
     # text_Q_mean = f'Mean = {np.round(average_error_Q, 4)}'
-    plt.figure(figure_number)
+    fig=plt.figure(figure_number)
     figure_number += 1
     plt.plot(data_points, error[1::2], 'g-', alpha=0.5)
     average_error_Q_scientific = np.format_float_scientific(average_error_Q,2)
@@ -1058,7 +1061,8 @@ def plot_cla(x, A, b, aoa_storage, start_alpha, finish_alpha, degree_cla, degree
     plt.ylabel("$\\epsilon_Q$ [Nm]")
     # plt.title("Approximation error torque")
     plt.grid(True)
-    plt.legend()
+    plt.legend(loc=3)
+    fig.subplots_adjust(left=0.14, top=0.95, right=0.99, bottom=0.13)
 
     ## Validation plots to observe the whiteness of the residual. This function was commented out since the acorr
     ## function from matplotlib is able to do exactly the same
@@ -1093,7 +1097,7 @@ def plot_cla(x, A, b, aoa_storage, start_alpha, finish_alpha, degree_cla, degree
     # plt.show()
 
     conf = 1.96 / np.sqrt(error_T.shape[0])
-    plt.figure(figure_number)
+    fig = plt.figure(figure_number)
     ax = plt.gca()
     figure_number += 1
     ax.acorr(np.reshape(error_T, [-1, ]), maxlags=None, usevlines=False, normed=True, linestyle="-", marker='',
@@ -1106,6 +1110,7 @@ def plot_cla(x, A, b, aoa_storage, start_alpha, finish_alpha, degree_cla, degree
     # plt.title("Autocorrelation of model residual: Thrust")
     plt.grid(True)
     plt.legend(loc='upper right')
+    fig.subplots_adjust(left=0.09, top=0.95, right=0.99, bottom=0.13)
 
     ## Plot corresponding to the torque
     # plt.figure(figure_number)
@@ -1120,7 +1125,7 @@ def plot_cla(x, A, b, aoa_storage, start_alpha, finish_alpha, degree_cla, degree
     # plt.legend()
     # plt.show()
 
-    plt.figure(figure_number)
+    fig = plt.figure(figure_number)
     ax = plt.gca()
     figure_number += 1
     ax.acorr(np.reshape(error_Q, [-1, ]), maxlags=None, usevlines=False, normed=True, linestyle="-", marker='',
@@ -1133,6 +1138,7 @@ def plot_cla(x, A, b, aoa_storage, start_alpha, finish_alpha, degree_cla, degree
     # plt.title("Autocorrelation of model residual: Torque")
     plt.grid(True)
     plt.legend(loc='upper right')
+    fig.subplots_adjust(left=0.09, top=0.95, right=0.99, bottom=0.13)
 
     # Plot of the angles of attack seen by each of the selected blade sections. It is represented as a box plot such
     # that it can be seen the average angle of attack as well as the range of alphas seen by its section.
@@ -1165,7 +1171,7 @@ def plot_cla(x, A, b, aoa_storage, start_alpha, finish_alpha, degree_cla, degree
                 counter = i - start_section
                 aoa_vectors[:, counter] = np.reshape(np.array(aoa_storage[i]), [-1, ])
 
-            plt.figure(figure_number)
+            fig = plt.figure(figure_number)
             ax = plt.gca()
             figure_number += 1
             plt.boxplot(np.degrees(aoa_vectors), showfliers=False, patch_artist=True)
@@ -1174,6 +1180,7 @@ def plot_cla(x, A, b, aoa_storage, start_alpha, finish_alpha, degree_cla, degree
             plt.ylabel(r"$\alpha$ [deg]")
             plt.xlabel("Blade section number [-]")
             plt.grid(True, alpha=0.5)
+            fig.subplots_adjust(left=0.09, top=0.95, right=0.99, bottom=0.13)
 
 
 def plot_inputs(inputs_dict):
