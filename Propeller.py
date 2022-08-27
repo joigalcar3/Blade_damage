@@ -514,7 +514,7 @@ class Propeller:
 
         return Q_remaining, Q_damaged, F_remaining, F_damaged
 
-    def compute_aero_FM(self, number_sections, omega, cla_coeffs, cda_coeffs, body_velocity, pqr, rho=1.225):
+    def compute_aero_damaged_FM(self, number_sections, omega, cla_coeffs, cda_coeffs, body_velocity, pqr, rho=1.225):
         """
         Method to compute the forces and moments caused by the aerodynamic changes
         :param number_sections: total number of sections in which a healthy blade is split up
@@ -545,6 +545,37 @@ class Propeller:
 
         return F_damaged, M_damaged
 
+    def compute_aero_healhty_FM(self, number_sections, omega, cla_coeffs, cda_coeffs, body_velocity, pqr, rho=1.225):
+        """
+        Method to compute the forces and moments caused by the aerodynamics of the remaining blade sections
+        :param number_sections: total number of sections in which a healthy blade is split up
+        :param omega: the rotation rate of the propeller
+        :param cla_coeffs: the coefficients that relate the angle of attack to the airfoil lift coefficient
+        :param cda_coeffs: the coefficients that relate the angle of attack to the airfoil drag coefficient
+        :param body_velocity: the body 3D linear velocity
+        :param pqr: the body 3D angular velocity
+        :param rho: the air density
+        :return:
+        """
+        # Create the blades in the case that they were not created
+        if not self.blades:
+            self.create_blades()
+
+        # Compute the thrust from the Matlab model
+        T, _ = self.compute_lift_torque_matlab(body_velocity, pqr, omega, rho)
+        inflow_data = self.compute_induced_inflow(T, rho, omega)
+
+        # Obtain the healthy and damaged forces and moments
+        T_healthy, _, M_healthy, _ = self.compute_thrust_moment(number_sections, omega, cla_coeffs, cda_coeffs,
+                                                                inflow_data)
+        Q_healthy, _, F_healthy, _ = self.compute_torque_force(number_sections, omega, cla_coeffs, cda_coeffs,
+                                                               inflow_data)
+
+        F_healthy[0, 2] += T_healthy
+        M_healthy[0, 2] += Q_healthy
+
+        return F_healthy, M_healthy
+
     def compute_mass_aero_FM(self, number_sections, omega, attitude, cla_coeffs, cda_coeffs, body_velocity, pqr, rho=1.225):
         """
         Method to compute the forces and moments caused by the aerodynamic and mass changes
@@ -562,9 +593,34 @@ class Propeller:
         F_cg, M_cg = self.compute_cg_forces_moments(omega, attitude)
 
         # Computation of moments and forces derived from the loss in an aerodynamic surface
-        F_damaged, M_damaged = self.compute_aero_FM(number_sections, omega, cla_coeffs, cda_coeffs, body_velocity, pqr,
-                                                    rho)
+        F_damaged, M_damaged = self.compute_aero_damaged_FM(number_sections, omega, cla_coeffs, cda_coeffs, body_velocity, pqr,
+                                                            rho)
         F = F_cg - F_damaged.T
         M = M_cg - M_damaged.T
+
+        return F, M
+
+    def compute_mass_aero_healthy_FM(self, number_sections, omega, attitude, cla_coeffs, cda_coeffs, body_velocity, pqr,
+                                     rho=1.225):
+        """
+        Method to compute the forces and moments caused by the aerodynamic and mass changes
+        :param number_sections: total number of sections in which a healthy blade is split up
+        :param omega: the rotation rate of the propeller
+        :param attitude: attitude of the drone in the form of Euler angles
+        :param cla_coeffs: the coefficients that relate the angle of attack to the airfoil lift coefficient
+        :param cda_coeffs: the coefficients that relate the angle of attack to the airfoil drag coefficient
+        :param body_velocity: the body 3D linear velocity
+        :param pqr: the body 3D angular velocity
+        :param rho: the air density
+        :return:
+        """
+        # Computation of forces and moments that derive from the change in mass
+        F_cg, M_cg = self.compute_cg_forces_moments(omega, attitude)
+
+        # Computation of moments and forces derived from the loss in an aerodynamic surface
+        F_healthy, M_healthy = self.compute_aero_healhty_FM(number_sections, omega, cla_coeffs, cda_coeffs,
+                                                            body_velocity, pqr, rho)
+        F = F_cg + F_healthy.T
+        M = M_cg + M_healthy.T
 
         return F, M
