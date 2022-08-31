@@ -430,7 +430,7 @@ class Propeller:
         #     print("hola")
         # print("ERROR_DIFFERENCE = ", V0_2-v0, "TIME = ", scipy_time-personal_time)
         lambda_0 = v0 / (omega * R)
-        if V_inf != 0:
+        if V_inf != 0 and np.abs(self.propeller_velocity[0, 0])+np.abs(self.propeller_velocity[1, 0]) != 0:
             # Compute wake skew angle
             mu_x = V_inf * np.cos(tpp_V_angle) / (omega * R)
             mu_z = V_inf * np.sin(tpp_V_angle) / (omega * R)
