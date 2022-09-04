@@ -1526,7 +1526,6 @@ def plot_FM(t, rotation_angle, F, M, mass_aero="m"):
             ax_f.set_ylabel(f"$\Delta F^B_{{{axis_names[i]}}}$ [N]")
         ax_f.ticklabel_format(axis="y", style="sci", scilimits=(-2, -7))
         ax_f.grid(True)
-        f_f.tight_layout()
 
         ax_m = ax_m_lst[i]
         ax_m.plot(t, M[i, :], linewidth=3)
@@ -1537,7 +1536,6 @@ def plot_FM(t, rotation_angle, F, M, mass_aero="m"):
             ax_m.set_ylabel(f"$\Delta M^B_{{{axis_names[i]}}}$ [Nm]")
         ax_m.ticklabel_format(axis="y", style="sci", scilimits=(-2, -7))
         ax_m.grid(True)
-        f_m.tight_layout()
     ax_f.set_xlabel("Time [s]")
     ax_m.set_xlabel("Time [s]")
     f_f.subplots_adjust(left=0.13, top=0.95, right=0.99, bottom=0.13)

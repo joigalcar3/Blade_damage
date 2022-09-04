@@ -47,7 +47,7 @@ __email__ = "j.i.dealvearcardenas@student.tudelft.nl"
 __status__ = "Development"
 
 # Create the propeller and the blades
-propeller = Propeller(0, n_blades, chord_lengths_rt_lst, length_trapezoids_rt_lst, radius_hub, propeller_mass,
+propeller = Propeller(propeller_number, n_blades, chord_lengths_rt_lst, length_trapezoids_rt_lst, radius_hub, propeller_mass,
                       percentage_hub_m, angle_first_blade, start_twist, finish_twist,
                       broken_percentage=percentage_broken_blade_length, plot_chords_twist=switch_chords_twist_plotting)
 propeller.create_blades()
