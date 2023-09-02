@@ -53,7 +53,7 @@ length_trapezoids_rt_lst = [first_segment_length, second_segment_length]  # list
 
 
 # User input
-percentage_broken_blade_length = [25, 0, 0]   # [%]
+percentage_broken_blade_length = [100, 100, 100]   # [%]
 angle_first_blade = 0                 # [deg] angle of the first blade with respect to the propeller coord. frame
 n_blade_segment_lst = list(np.arange(100, 150, 50))               # [-] number of sections in which a single blade is divided
 number_samples_lst = list(np.arange(16000, 17000, 1000))                 # [-] number of data points for the model identification
@@ -77,9 +77,9 @@ switch_avg_rot = True   # Switch to activate whether the instantaneous propeller
 switch_constraints = True    # Whether the optimization should be constrained. Only for COBYLA, SLSQP and trust-constr
 switch_coeffs_grid_plot = True if len(n_blade_segment_lst)+len(number_samples_lst) > 2 else False  # Whether to plot cl and cd coeffs wrt the #blade sections and #data points
 switch_plot_mass = False  # if True, the mass time simulation will be plotted
-switch_plot_aero = False  # if True, the aero time simulation will be plotted
+switch_plot_aero = True  # if True, the aero time simulation will be plotted
 switch_plot_mass_aero = False  # if True, the aero and mass time simulation will be plotted
-switch_plot_healthy_mass_aero = True  # if True, the aero and mass time simulation will be plotted of the healthy BSs
+switch_plot_healthy_mass_aero = False  # if True, the aero and mass time simulation will be plotted of the healthy BSs
 switch_plot_mass_aero_blade_percentage = False  # if True, the aero and mass maximum and minimum time simulation values will be plotted wrt blade damage
 
 # Only for COBYLA, SLSQP and trust-constr accept constraints. Equality constraint means that the constraint function
@@ -91,10 +91,17 @@ switch_plot_mass_aero_blade_percentage = False  # if True, the aero and mass max
 
 
 # Basic drone state information
-body_velocity = np.array([[2, 0, 0]]).T
+body_velocity = np.array([[3, 0, 0]]).T
+# wind_speed = 12
+# alpha_angle = 75
+# body_velocity = np.array(
+#         [[wind_speed * np.cos(np.deg2rad(alpha_angle)), 0, -wind_speed * np.sin(np.deg2rad(alpha_angle))]]).T
+if abs(body_velocity[0, 0]) < 1e-12: body_velocity[0, 0] = 0
+if abs(body_velocity[1, 0]) < 1e-12: body_velocity[1, 0] = 0
+if abs(body_velocity[2, 0]) < 1e-12: body_velocity[2, 0] = 0
 pqr = np.array([[0, 0, 0]]).T
 attitude = np.array([[0, 0, 0]]).T
-omega = 500          # [rad/s]
+omega = 600         # [rad/s]
 cla_coeffs = np.array([2.41574347e-01, 5.15236959e+00, -1.22553556e+01])
 cda_coeffs = np.array([9.22164567e-03, -7.92542848e-01, 1.51364609e+01])
 # cla_coeffs = np.array([2.93049304e-01, 4.47483030e+00, -1.16086661e+01])
@@ -105,6 +112,6 @@ cda_coeffs = np.array([9.22164567e-03, -7.92542848e-01, 1.51364609e+01])
 # omega = 900       # [rad/s]
 rho = 1.225  # [kg/m^3]
 total_time = 0.25
-dt = 0.001
-propeller_number = 1
+dt = 0.01
+propeller_number = 0
 

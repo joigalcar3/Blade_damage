@@ -20,14 +20,14 @@ from mpl_toolkits.axes_grid1 import make_axes_locatable
 from statsmodels.stats.stattools import durbin_watson
 import matplotlib
 
-__author__ = "Jose Ignacio de Alvear Cardenas"
+__author__ = "Jose Ignacio de Alvear Cardenas (GitHub: @joigalcar3)"
 __copyright__ = "Copyright 2022, Jose Ignacio de Alvear Cardenas"
 __credits__ = ["Jose Ignacio de Alvear Cardenas"]
 __license__ = "MIT"
 __version__ = "1.0.1 (04/04/2022)"
 __maintainer__ = "Jose Ignacio de Alvear Cardenas"
-__email__ = "j.i.dealvearcardenas@student.tudelft.nl"
-__status__ = "Development"
+__email__ = "jialvear@hotmail.com"
+__status__ = "Stable"
 
 # General global params
 start_time = time.time()
@@ -79,7 +79,7 @@ def compute_chord_blade(chords, hs, pos):
     :param chords: list of all blade chords
     :param hs: list of all blade segment distances
     :param pos: desired distance from the root
-    :return:
+    :return: chord at a certain location along the blade
     """
     h0 = 0
     for i in range(len(hs)):
@@ -124,13 +124,15 @@ def compute_average_chord(chords, hs, pos_start, pos_end):
         bc = chords[i]
         tc = chords[i + 1]
         if (h0 + h) > pos_start >= h0:
+            # Chord at the root of the blade section
             c1 = compute_chord_trapezoid(bc, tc, h, h0, pos_start)
-            if (h0 + h) <= pos_end:
+            if (h0 + h) <= pos_end:  # in the case that the end location of the blade section is in another trapezoid
                 area += compute_trapezoid_area(c1, tc, h - pos_start)
                 c1 = tc
                 pos_start = h0 + h
 
-            if (h0 + h) > pos_end >= h0:
+            if (h0 + h) > pos_end >= h0:  # the end location of the blade section is in the current trapezoid
+                # Chord at the tip of the blade section
                 c2 = compute_chord_trapezoid(bc, tc, h, h0, pos_end)
                 area += compute_trapezoid_area(c1, c2, pos_end - pos_start)
         h0 += h
@@ -142,18 +144,19 @@ def compute_average_chord(chords, hs, pos_start, pos_end):
 def compute_average_chords(chords, hs, n_segments):
     """
     Function that computes the average chords of all the blade section
-    :param chords: list with all the blade sections' chords
-    :param hs: list with all the blade sections' lengths
+    :param chords: list with all the trapezoid sections' chords
+    :param hs: list with all the trapezoid sections' lengths
     :param n_segments: number of blade sections
-    :return:
+    :return: average chords of all the blade sections and the chords at the root and tip of the blade sections
     """
 
     def update_chords_h(counter, h_origin):
         """
         Function that retrieves the information related to a blade section
-        :param counter: current blade section index
+        :param counter: current trapezoid index
         :param h_origin: start location of the blade section along the blade axis
-        :return:
+        :return: the length of the current blade trapezoid, its root and tip chords, the trapezoid counter and the
+        location along the blade where the trapezoid root is located.
         """
         if counter >= 0:
             h_origin += hs[counter]
@@ -163,8 +166,8 @@ def compute_average_chords(chords, hs, n_segments):
         current_tc = chords[counter + 1]
         return current_h, current_bc, current_tc, counter, h_origin
 
-    length_blade = sum(hs)
-    length_segment = length_blade / n_segments
+    length_blade = sum(hs)  # length of the blade
+    length_segment = length_blade / n_segments  # length of each blade section
 
     segment = 0
     h, bc, tc, trapezoid_count, h0 = update_chords_h(-1, 0)
@@ -172,33 +175,57 @@ def compute_average_chords(chords, hs, n_segments):
     segment_chords = [bc]
     for i in range(n_segments):
         area_1 = 0
-        pos_c1 = segment * length_segment
-        pos_c2 = (segment + 1) * length_segment
-        c1 = segment_chords[segment]
-        if pos_c2 > (h0 + hs[trapezoid_count]):  # Transition is incorrect
+        pos_c1 = segment * length_segment  # location of the blade section's root chord along the blade
+        pos_c2 = (segment + 1) * length_segment  # location of the blade section's tip chord along the blade
+        c1 = segment_chords[segment]  # chord of the blade section's root
+        if pos_c2 > (h0 + hs[trapezoid_count]):  # In the case that the blade section's tip is in the next trapezoid
+            # Compute the area of the part of the blade section in the first trapezoid
             area_1 = compute_trapezoid_area(c1, tc, h0 + h - pos_c1)
+            # Retrieve the information from the second trapezoid
             h, bc, tc, trapezoid_count, h0 = update_chords_h(trapezoid_count, h0)
+        # Compute the location of the blade section's tip chord given its location and the information of the trapezoid
+        # where it is located
         c2 = compute_chord_trapezoid(bc, tc, h, h0, pos_c2)
 
-        if not bool(area_1):
+        if not bool(area_1):  # when the blade section is in a single trapezoid
             area = compute_trapezoid_area(c1, c2, length_segment)
-        else:
+        else:  # when it is found between two trapezoids
             area = area_1 + compute_trapezoid_area(bc, c2, pos_c2 - h0)
-        average_chord = area / length_segment
+        average_chord = area / length_segment  # compute the average chord of the blade section
         average_chords.append(average_chord)
         segment_chords.append(c2)
         segment += 1
     return average_chords, segment_chords
 
 
-# Helper functions related to aerodynamic Matlab model
+def compute_R_BI(attitude):
+    """
+    Compute transformation matrix from the inertial to the body coordinate frames
+    :param attitude: the attitude of the vehicle
+    :return: R_BI (transformation from inertial to body coordinate frame)
+    """
+    phi = attitude[0, 0]
+    theta = attitude[1, 0]
+    psi = attitude[2, 0]
+
+    R_BI = np.array([[np.cos(theta) * np.cos(psi), np.cos(theta) * np.sin(psi), -np.sin(theta)],
+                     [np.sin(phi) * np.sin(theta) * np.cos(psi) - np.cos(phi) * np.sin(psi),
+                      np.sin(phi) * np.sin(theta) * np.sin(psi) + np.cos(phi) * np.cos(psi),
+                      np.sin(phi) * np.cos(theta)],
+                     [np.cos(phi) * np.sin(theta) * np.cos(psi) + np.sin(phi) * np.sin(psi),
+                      np.cos(phi) * np.sin(theta) * np.sin(psi) - np.sin(phi) * np.cos(psi),
+                      np.cos(phi) * np.cos(theta)]])  # Transformation from the inertial to the body coordinate frame
+    return R_BI
+
+
+# Helper functions related to aerodynamic Matlab model (gray-box aerodynamic model)
 # %%
 def compute_P52(x1, x2):
     """
-    Function from the Matlab Bebop model for computing a 5th degree polynomial with two variables
+    Function from the Matlab Bebop 2 model for computing a 5th degree polynomial with two variables
     :param x1: first variable
     :param x2: second variable
-    :return:
+    :return: array of the polynomial terms elevated to the corresponding exponents
     """
     U = 1
     A1 = 1 * U
@@ -233,7 +260,7 @@ def compute_beta(u, v):
     Method that computes the sideslip angle given the body coordinate frame
     :param u: velocity along the x-axis
     :param v: velocity along the y-axis
-    :return:
+    :return: sideslip angle
     """
     beta = abs(np.arctan(v / u))
 
@@ -251,11 +278,11 @@ def compute_beta(u, v):
 
 def compute_psi(beta, arm_angle, propeller_number):
     """
-    Function to compute the psi value from the aerodynamic Matlab model
+    Function to compute the psi value from the aerodynamic Matlab model (gray-box aerodynamic model)
     :param beta: sideslip angle
     :param arm_angle: angle of the rotor arm with the body
     :param propeller_number: number of the propeller
-    :return:
+    :return: value of psi parameter
     """
     psi_h = 0
     if propeller_number == 0:
@@ -278,11 +305,12 @@ def compute_psi(beta, arm_angle, propeller_number):
 
 def compute_P32(x1, x2, U):
     """
-    Function obtained from the Matlab Bebop model to compute a 3rd order polynomial with two variables
+    Function obtained from the Matlab Bebop 2 model (gray-box aerodynamic model) to compute a 3rd order polynomial with
+    two variables
     :param x1: first variable
     :param x2: second variable
     :param U: additional input
-    :return:
+    :return: 3rd order polynomial with two variables parameter array
     """
     A2 = x1 * U
     A3 = x2 * U
@@ -300,13 +328,14 @@ def compute_P32(x1, x2, U):
 
 def compute_Fn(x, n, U, alpha, beta):
     """
-    Function retrieved from the Matlab Bebop model that computes the nth order Fourier series
+    Function retrieved from the Matlab Bebop 2 model (gray-box aerodynamic mdoel) that computes the nth order Fourier
+    series
     :param x: variable for obtaining the Fourier series
     :param n: degree of the Fourier series
     :param U: additional input
     :param alpha: horizontal advance ratio
     :param beta: sideslip angle equation
-    :return:
+    :return: parameter AF that will be used for the thrust and torque coefficient correction
     """
     AF = []
     for i in range(1, n + 1):
@@ -320,7 +349,7 @@ def rpm_rads(rpm):
     """
     Function to transform revolutions per minute to rad/s
     :param rpm: revolutions per minute
-    :return:
+    :return: rotational speed in rad/s
     """
     rads = rpm * 2 * np.pi / 60
     return rads
@@ -378,7 +407,8 @@ def optimize(A, b, optimization_method, **kwargs):
         # Creation of the constraints and optimization of the least squares equation
         switch_constraints = kwargs["switch_constraints"]
         if switch_constraints:
-            arguments_constraint = (kwargs["degree_cla"], kwargs["degree_cda"], kwargs["min_angle"], kwargs["max_angle"])
+            arguments_constraint = (
+                kwargs["degree_cla"], kwargs["degree_cda"], kwargs["min_angle"], kwargs["max_angle"])
             # noinspection SpellCheckingInspection
             constraints = ({"type": "ineq", "fun": nonlinear_constraint_drag_minimum, "args": arguments_constraint},
                            {"type": "ineq", "fun": nonlinear_constraint_lift_maximum, "args": arguments_constraint},
@@ -409,6 +439,8 @@ def minimize_func(x, A, b):
     error_torque = error[1::2]
     RMSE_thrust = np.sqrt(np.mean(np.power(error_thrust, 2))) / np.std(b[::2])
     RMSE_torque = np.sqrt(np.mean(np.power(error_torque, 2))) / np.std(b[1::2])
+
+    # Not chosen alternatives
     # RMSE_thrust = np.sqrt(np.mean(np.power(error_thrust, 2))) / (np.max(b[::2]) - np.min(b[::2]))
     # RMSE_torque = np.sqrt(np.mean(np.power(error_torque, 2))) / (np.max(b[1::2]) - np.min(b[1::2]))
 
@@ -433,7 +465,7 @@ def nonlinear_constraint_drag_minimum(local_x, degree_cla, degree_cda, min_angle
 
 def nonlinear_constraint_lift_maximum(local_x, degree_cla, degree_cda, min_angle, max_angle):
     """
-    Constraint to avoid that the lift value to obtain a very large value, namely higher than 3
+    Constraint to avoid that the lift value to obtain a very large value, namely higher than 5
     :param local_x: value of the cl and cd coefficients
     :param degree_cla: degree of the lift coefficient equation
     :param degree_cda: degree of the drag coefficient equation
@@ -508,6 +540,8 @@ def constraint_computation(min_angle, max_angle, degree_cla, degree_cda, cl_or_c
 
     angles = np.radians(np.arange(min_angle, max_angle + 1))
     local_A = np.zeros((angles.shape[0], degree_cla + degree_cda + 2))
+
+    # Decide whether we are dealing with the lift or drag coefficient
     if cl_or_cd == "cl":
         if switch_slope:
             for i in range(1, degree_cla + 1):
@@ -524,6 +558,7 @@ def constraint_computation(min_angle, max_angle, degree_cla, degree_cda, cl_or_c
     # Computation of the curve values
     local_b = np.matmul(local_A, np.reshape(local_x, [-1, 1]))
 
+    # Choosing for the maximum or minimum value
     if min_or_max == "min":
         output = np.min(local_b)
     elif min_or_max == "max":
@@ -542,7 +577,7 @@ def compute_LS(LS_method, W_matrix, A, b):
     :param W_matrix: the weight matrix for WLS
     :param A: the A matrix
     :param b: the b matrix
-    :return:
+    :return: the parameter estimate vector
     """
     # Check what Least Squares method is used and apply the computation of the unknowns
     if LS_method == "WLS":  # Weighted Least Squares
@@ -593,7 +628,7 @@ def compute_coeffs_grid_row(A, b, optimization_method, LS_method, W_matrix, degr
     :param warm_starts: use already computed coefficients as warm start in the optimization
     :param current_coeffs_grid: current state of the coefficient grid
     :param warm_start_row_index: row index within the coefficient grid of the current row
-    :return:
+    :return: array with the lift and drag coefficients identified with different numbers of samples
     """
     global figure_number
 
@@ -657,7 +692,7 @@ def store_Abu_data(A, b, u, n_blade_segment, number_samples, va, min_method, nam
     :param va: airspeed
     :param min_method: method used for the optimization
     :param name_suffix: suffix of the file name
-    :return:
+    :return: None
     """
     name_lst = ["A", "b", "u"]
     extension = [".npy", ".npy", ""]
@@ -1110,7 +1145,7 @@ def plot_cla(x, A, b, aoa_storage, start_alpha, finish_alpha, degree_cla, degree
     # plt.title("Autocorrelation of model residual: Thrust")
     plt.grid(True)
     plt.legend(loc='upper right')
-    fig.subplots_adjust(left=0.09, top=0.95, right=0.99, bottom=0.13)
+    fig.subplots_adjust(left=0.12, top=0.95, right=0.99, bottom=0.13)
 
     ## Plot corresponding to the torque
     # plt.figure(figure_number)
@@ -1138,7 +1173,7 @@ def plot_cla(x, A, b, aoa_storage, start_alpha, finish_alpha, degree_cla, degree
     # plt.title("Autocorrelation of model residual: Torque")
     plt.grid(True)
     plt.legend(loc='upper right')
-    fig.subplots_adjust(left=0.09, top=0.95, right=0.99, bottom=0.13)
+    fig.subplots_adjust(left=0.12, top=0.95, right=0.99, bottom=0.13)
 
     # Plot of the angles of attack seen by each of the selected blade sections. It is represented as a box plot such
     # that it can be seen the average angle of attack as well as the range of alphas seen by its section.
@@ -1179,8 +1214,10 @@ def plot_cla(x, A, b, aoa_storage, start_alpha, finish_alpha, degree_cla, degree
             ax.xaxis.set_major_formatter(ScalarFormatter())
             plt.ylabel(r"$\alpha$ [deg]")
             plt.xlabel("Blade section number [-]")
+            # plt.ylabel(r"$\alpha$, deg")
+            # plt.xlabel("Blade section number")
             plt.grid(True, alpha=0.5)
-            fig.subplots_adjust(left=0.09, top=0.95, right=0.99, bottom=0.13)
+            fig.subplots_adjust(left=0.09, top=0.95, right=0.97, bottom=0.13)
 
 
 def plot_inputs(inputs_dict):
@@ -1468,6 +1505,7 @@ def coeff_plotter(coeffs_grid_local, degree, coeff_type, X, Y, gradient=False, g
     figure_number += 1
     axes = fig.subplots(degree + 1, 1, gridspec_kw={'wspace': 0.5, 'hspace': 0.7})
     counter = 0
+    colorbar_lst = []
     for ax in np.array([axes]).flatten():
         if gradient:
             im = ax.pcolormesh(X, Y, coeffs_grid_local[:, :, counter], vmin=gradient_cb_min, vmax=gradient_cb_max, cmap="viridis")
@@ -1478,14 +1516,40 @@ def coeff_plotter(coeffs_grid_local, degree, coeff_type, X, Y, gradient=False, g
         ax.yaxis.set_major_locator(MultipleLocator(200))
         ax.yaxis.set_minor_locator(IndexLocator(base=Y[1, 0]-Y[0, 0], offset=0))
         ax.xaxis.set_minor_locator(IndexLocator(base=X[0, 1]-X[0, 0], offset=0))
-        ax.grid(b=True, which='minor')
+        # ax.grid(b=True, which='minor')
         # ax.grid(b=True, which='major')
         # ax.set_xlim([1000, Y[-1, -1]])
         divider = make_axes_locatable(ax)
         cax = divider.append_axes('right', size='5%', pad=0.05)
         fig.colorbar(im, cax=cax, orientation='vertical', label=cbar_label_func(counter))
+        ax.ticklabel_format(axis="y", style="sci", scilimits=(0, 1))
+        cax.ticklabel_format(axis="y", style="sci", scilimits=(0, 1))
+        colorbar_lst.append(cax)
         # cbar.ax.tick_params(labelsize=)
         counter += 1
+    # string_colorbars_ticks = np.concatenate([cax.get_yticks().astype(str) for cax in colorbar_lst])
+    # significant_figures = []
+    # for string_colorbars_tick in string_colorbars_ticks:
+    #     if len(string_colorbars_tick) > 8:
+    #         if string_colorbars_tick[-1] == "9":
+    #             first_decimal_place = np.where(np.array(list(string_colorbars_tick[:-1])) != "9")[0][0]
+    #             last_decimal_place = np.where(np.array(list(string_colorbars_tick[:-1])) != "9")[0][-1]
+    #         else:
+    #             first_decimal_place = np.where(np.array(list(string_colorbars_tick[:-1])) != "0")[0][0]
+    #             last_decimal_place = np.where(np.array(list(string_colorbars_tick[:-1])) != "0")[0][-1]
+    #     else:
+    #         first_decimal_place = np.where(np.array(list(string_colorbars_tick)) != "0")[0][0]
+    #         last_decimal_place = len(string_colorbars_tick)
+    #     significant_figures.append(last_decimal_place-first_decimal_place)
+    # if max(significant_figures) > 5:
+    #     for i in colorbar_lst:
+    #         i.yaxis.set_label_coords(3.85, 0.5)
+    # else:
+    #     for i in colorbar_lst:
+    #         i.yaxis.set_label_coords(3, 0.5)
+
+    fig.subplots_adjust(left=0.05, top=0.94, right=0.85, bottom=0.12)
+    fig.set_size_inches(19.24, 10.55)
     if switch_title:
         fig.suptitle(f"Value of the {coeff_type} coefficients wrt. the number of samples and blade sections")
 
@@ -1521,9 +1585,9 @@ def plot_FM(t, rotation_angle, F, M, mass_aero="m"):
         ax_f.plot(t, F[i, :], linewidth=3)
 
         if mass_aero == "a" or mass_aero == "m":
-            ax_f.set_ylabel(f"$F^B_{{{mass_aero}_{axis_names[i]}}}$ [N]")
+            ax_f.set_ylabel(f"$F^P_{{{mass_aero}_{axis_names[i]}}}$ [N]")
         else:
-            ax_f.set_ylabel(f"$\Delta F^B_{{{axis_names[i]}}}$ [N]")
+            ax_f.set_ylabel(f"$\Delta F^P_{{{axis_names[i]}}}$ [N]")
         ax_f.ticklabel_format(axis="y", style="sci", scilimits=(-2, -7))
         ax_f.grid(True)
 
@@ -1531,15 +1595,13 @@ def plot_FM(t, rotation_angle, F, M, mass_aero="m"):
         ax_m.plot(t, M[i, :], linewidth=3)
 
         if mass_aero == "a" or mass_aero == "m":
-            ax_m.set_ylabel(f"$M^B_{{{mass_aero}_{axis_names[i]}}}$ [Nm]")
+            ax_m.set_ylabel(f"$M^P_{{{mass_aero}_{axis_names[i]}}}$ [Nm]")
         else:
-            ax_m.set_ylabel(f"$\Delta M^B_{{{axis_names[i]}}}$ [Nm]")
+            ax_m.set_ylabel(f"$\Delta M^P_{{{axis_names[i]}}}$ [Nm]")
         ax_m.ticklabel_format(axis="y", style="sci", scilimits=(-2, -7))
         ax_m.grid(True)
     ax_f.set_xlabel("Time [s]")
     ax_m.set_xlabel("Time [s]")
-    f_f.subplots_adjust(left=0.13, top=0.95, right=0.99, bottom=0.13)
-    f_m.subplots_adjust(left=0.13, top=0.95, right=0.99, bottom=0.13)
 
     f_n_long_y_axis = 0
     for axs in ax_f_lst:
@@ -1562,7 +1624,10 @@ def plot_FM(t, rotation_angle, F, M, mass_aero="m"):
             axs.yaxis.set_label_coords(-0.05, 0.5)
         else:
             axs.yaxis.set_label_coords(-0.095, 0.5)
+    f_f.subplots_adjust(left=0.13, top=0.95, right=0.99, bottom=0.13)
+    f_m.subplots_adjust(left=0.13, top=0.95, right=0.99, bottom=0.13)
     # plt.show()
+
 
 
 def plot_FM_multiple(t, F, M, mass_aero="m", x_axis_label="Blade damage [%]"):
@@ -1589,11 +1654,11 @@ def plot_FM_multiple(t, F, M, mass_aero="m", x_axis_label="Blade damage [%]"):
             ax_f.plot(t, F[i, :, j], linewidth=3)
 
             if mass_aero == "a" or mass_aero == "m":
-                ax_f.set_ylabel(f"$F^B_{{{mass_aero}_{axis_names[i]}}}$ [N]")
+                ax_f.set_ylabel(f"$F^P_{{{mass_aero}_{axis_names[i]}}}$ [N]")
             elif mass_aero == "b":
-                ax_f.set_ylabel(f"$F^B_{{._{axis_names[i]}}}$ [N]")
+                ax_f.set_ylabel(f"$F^P_{{._{axis_names[i]}}}$ [N]")
             else:
-                ax_f.set_ylabel(f"$\Delta F^B_{{{axis_names[i]}}}$ [N]")
+                ax_f.set_ylabel(f"$\Delta F^P_{{{axis_names[i]}}}$ [N]")
             ax_f.ticklabel_format(axis="y", style="sci", scilimits=(-2, -7))
             ax_f.grid(True)
             f_f.tight_layout()
@@ -1602,11 +1667,11 @@ def plot_FM_multiple(t, F, M, mass_aero="m", x_axis_label="Blade damage [%]"):
             ax_m.plot(t, M[i, :, j], linewidth=3)
 
             if mass_aero == "a" or mass_aero == "m":
-                ax_m.set_ylabel(f"$M^B_{{{mass_aero}_{axis_names[i]}}}$ [Nm]")
+                ax_m.set_ylabel(f"$M^P_{{{mass_aero}_{axis_names[i]}}}$ [Nm]")
             elif mass_aero == "b":
-                ax_m.set_ylabel(f"$M^B_{{._{axis_names[i]}}}$ [Nm]")
+                ax_m.set_ylabel(f"$M^P_{{._{axis_names[i]}}}$ [Nm]")
             else:
-                ax_m.set_ylabel(f"$\Delta M^B_{{{axis_names[i]}}}$ [Nm]")
+                ax_m.set_ylabel(f"$\Delta M^P_{{{axis_names[i]}}}$ [Nm]")
             ax_m.ticklabel_format(axis="y", style="sci", scilimits=(-2, -7))
             ax_m.grid(True)
             f_m.tight_layout()

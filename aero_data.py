@@ -7,15 +7,16 @@ It contains the aerodynamic parameters for the Matlab model computations
 
 import numpy as np
 
-__author__ = "Jose Ignacio de Alvear Cardenas"
+__author__ = "Jose Ignacio de Alvear Cardenas (GitHub: @joigalcar3)"
 __copyright__ = "Copyright 2022, Jose Ignacio de Alvear Cardenas"
 __credits__ = ["Jose Ignacio de Alvear Cardenas"]
 __license__ = "MIT"
 __version__ = "1.0.1 (04/04/2022)"
 __maintainer__ = "Jose Ignacio de Alvear Cardenas"
-__email__ = "j.i.dealvearcardenas@student.tudelft.nl"
-__status__ = "Development"
+__email__ = "jialvear@hotmail.com"
+__status__ = "Stable"
 
+# Identified polynomial coefficients for the computation of the thrust coefficient
 k_Ct0 = np.array([[0.0152457017219075, -3.19835880466424e-05, -0.0474659629880834, -5.48089604291955e-08,
                   -0.000164550969624146, 0.650877249185920, 1.10477778832442e-08, -9.76752919452344e-06,
                   0.00859691522825337, -2.20418122442645, 3.27434126987218e-11, -5.69117054658112e-08,
@@ -23,6 +24,7 @@ k_Ct0 = np.array([[0.0152457017219075, -3.19835880466424e-05, -0.047465962988083
                   1.81690349314076e-10, -4.63671043348055e-08, -1.52454780569063e-05, 0.00607313609112646,
                   -1.51563942225535]])
 
+# Identified polynomial coefficients for the computation of the thrust coefficient correction
 k_model_2 = np.array([[0.00274750362242118, 0.0587325418628517, 0.0291979006795257, 0.155176381977433,
                       -0.848919654295447, -2.85285652127970, -16.6872606424138, -25.3582092758054,
                       -8.21139486023900, 0.000662666074942486, -0.0137515544490184, 0.0258468383560923,
@@ -45,7 +47,7 @@ k_model_2 = np.array([[0.00274750362242118, 0.0587325418628517, 0.02919790067952
                       -0.00474962613583822, -0.180460224377998, -0.0116017180130748, 0.0192198318847662,
                       1.17708508701190, 0.0640467785184096, 3.10723451211166, 0.482465692101886]]).T
 
-
+# Identified polynomial coefficients for the computation of the torque coefficient
 k_Cq0 = np.array([[-0.000166978387654207, -9.26661647846620e-07, -0.000161106517356852, 1.49219451037256e-09,
                    -2.80468068962665e-06, 0.000591396065463947, 4.46363200546300e-10, 8.90349145739088e-08,
                    -1.53880349952214e-05, -0.00773976740405967, -3.70391296926118e-13, 3.92836511888492e-10,
@@ -53,6 +55,7 @@ k_Cq0 = np.array([[-0.000166978387654207, -9.26661647846620e-07, -0.000161106517
                    -3.24864794974322e-12, 1.14205811263298e-09, -6.42233810561959e-08, 0.000149532607712236,
                    -0.0106110955476936]])
 
+# Identified polynomial coefficients for the computation of the torque coefficient correction
 k_model_11 = np.array([[0.00260329204354066, 0.00129328992586148, -0.0199809965492002, -0.0868022523710462,
                         -0.0889469386700429, 0.128032771798353, 0.146886709138850, 0.524080931866815,
                         0.725843471299357, 0.00242937984350116, -0.00310550867822261, -0.0595768021706452,

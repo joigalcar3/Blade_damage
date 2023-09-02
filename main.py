@@ -318,7 +318,7 @@ if switch_plot_mass_aero_blade_percentage:
     plt.plot(percentage_broken_blade_length_lst[1:], (F_broken_percentage_max[0, 1:]-F_broken_percentage_max[0, :-1])/5,
              linewidth=4)
     plt.xlabel("BD [%]")
-    plt.ylabel("$\\frac{d}{d\,BD}\Delta F^B_x$ [N/%]")
+    plt.ylabel("$\\frac{d}{d\,BD}\Delta F^P_x$ [N/%]")
     plt.ticklabel_format(axis="y", style="sci", scilimits=(-2, -7))
     fig.subplots_adjust(left=0.13, top=0.95, right=0.99, bottom=0.13)
     plt.grid(True)
@@ -329,7 +329,7 @@ if switch_plot_mass_aero_blade_percentage:
     plt.plot(percentage_broken_blade_length_lst[1:], (M_broken_percentage_max[0,1:]-M_broken_percentage_max[0 , :-1])/5,
              linewidth=4)
     plt.xlabel("BD [%]")
-    plt.ylabel("$\\frac{d}{d\,BD}\Delta M^B_x$ [Nm/%]")
+    plt.ylabel("$\\frac{d}{d\,BD}\Delta M^P_x$ [Nm/%]")
     plt.ticklabel_format(axis="y", style="sci", scilimits=(-2, -7))
     fig.subplots_adjust(left=0.13, top=0.95, right=0.99, bottom=0.13)
     plt.grid(True)
@@ -366,7 +366,7 @@ plt.plot(percentage_broken_blade_length_lst[1:], (M_S_vi[0, 1:, 0] - M_S_vi[0, :
 
 
 plt.xlabel("BD [%]")
-plt.ylabel("$\\frac{d}{d\,BD}\Delta M^B_x$ [Nm/%]")
+plt.ylabel("$\\frac{d}{d\,BD}\Delta M^P_x$ [Nm/%]")
 plt.ticklabel_format(axis="y", style="sci", scilimits=(-2, -7))
 plt.ylim([-0.0005, 0.001])
 plt.grid(True)

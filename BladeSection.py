@@ -11,14 +11,14 @@ of the BladeSection lift and drag to the thrust force and torque.
 import numpy as np
 from math import *
 
-__author__ = "Jose Ignacio de Alvear Cardenas"
+__author__ = "Jose Ignacio de Alvear Cardenas (GitHub: @joigalcar3)"
 __copyright__ = "Copyright 2022, Jose Ignacio de Alvear Cardenas"
 __credits__ = ["Jose Ignacio de Alvear Cardenas"]
 __license__ = "MIT"
 __version__ = "1.0.1 (04/04/2022)"
 __maintainer__ = "Jose Ignacio de Alvear Cardenas"
-__email__ = "j.i.dealvearcardenas@student.tudelft.nl"
-__status__ = "Development"
+__email__ = "jialvear@hotmail.com"
+__status__ = "Stable"
 
 
 class BladeSection:
@@ -27,6 +27,19 @@ class BladeSection:
     """
     def __init__(self, section_number, chord, section_length, average_twist, initial_chord, final_chord, radius_hub,
                  rotation_direction, air_density=1.225):
+        """
+        Initialize a Blade Section instance.
+        :param section_number: the id number of the blade section within its parent Blade class
+        :param chord: the average chord of the blade section
+        :param section_length: the length of the blade section
+        :param average_twist: the average twist experienced along the blade section
+        :param initial_chord: the chord at the root of the blade section
+        :param final_chord: the chord at the tip of the blade section
+        :param radius_hub: the radius of the middle propeller hub
+        :param rotation_direction: the direction of rotation of the propelelr
+        :param air_density: the density of the air
+        :return: None
+        """
         self.section_number = section_number
         self.c = chord
         self.dr = section_length
@@ -39,8 +52,10 @@ class BladeSection:
 
         self.y = (self.section_number + 1/2)*self.dr + self.radius_hub
         self.S = self.c * self.dr
+        # Uncomment in order to create S=const curves in Figure 28 of paper: Blade Element Theory Model for UAV Blade
+        # Damage Simulation
         # self.S = 9.76*10**(-6)
-        self.stall = False
+        self.stall = False  # whether the blade section has stalled due to an extreme angle of attack
 
     def compute_thrust_moment(self, omega, rotor_speed, position_rotor, cla_coeffs, cda_coeffs, inflow_data):
         """
@@ -55,7 +70,7 @@ class BladeSection:
         :param inflow_data:data regarding the inflow field, namely the uniform induced inflow field, induced inflow
         velocity and a lambda function that computes the linear induced field depending on the blade element distance
         from the hub and angle with respect to the inflow.
-        :return:
+        :return: blade section thrust and moments in the x-y body plane
         """
         # Compute parameters
         Vl, aoa = self.compute_LS_term_params(omega, position_rotor, rotor_speed, inflow_data)
@@ -95,7 +110,7 @@ class BladeSection:
         :param inflow_data:data regarding the inflow field, namely the uniform induced inflow field, induced inflow
         velocity and a lambda function that computes the linear induced field depending on the blade element distance
         from the hub and angle with respect to the inflow.
-        :return:
+        :return: blade section torque and forces in the x-y body plane
         """
         # Compute parameters
         Vl, aoa = self.compute_LS_term_params(omega, position_rotor, rotor_speed, inflow_data)
@@ -127,14 +142,15 @@ class BladeSection:
 
     def compute_aoa(self, rotor_speed, Vx, vi):
         """
-        Compute the angle of attack
+        Compute the angle of attack experienced by the blade section
         :param rotor_speed: velocity experienced by the complete motor due to the translation and rotation of the body
         :param Vx: x-component of the velocity experienced by the blade in the blade coordinate frame. This
         means that it is the velocity component perpendicular to the blade
         :param vi: induced velocity
-        :return:
+        :return: the blade section angle of attack
         """
-        # Computation of the angle of attack
+        # Computation of the velocity along the z axis and the angle described by the velocity with respect to the x-y
+        # coordinate plane
         Vz_bl = -rotor_speed[2, 0] + vi
         velocity_angle = np.arctan(Vz_bl/abs(Vx))
 
@@ -144,9 +160,10 @@ class BladeSection:
             aoa = self.twist+np.pi+velocity_angle
             if aoa > np.pi:
                 aoa = 2*np.pi-aoa
-        else:
+        else:  # Normal scenario
             aoa = self.twist - velocity_angle
 
+        # When the angle of attack exceeds some limits, it is considered that the blade section has stalled
         if degrees(aoa) < -25 or degrees(aoa) > 25:
             self.stall = True
             print(f'An angle of attack of {degrees(aoa)} degrees means that blade section {self.section_number} '
@@ -163,7 +180,8 @@ class BladeSection:
         of the propeller is pointing towards the positive body x-axis.
         :param rotor_speed: velocity experienced by the complete motor due to the translation and rotation of the body
         :param vi: induced velocity
-        :return:
+        :return: velocity perpendicular to the blade section's chord in the x-y propeller plane (Vl) and the total velocity
+        experienced by the blade section along the plane perpendicular to its chord (V_total).
         """
         Vr = self.rotation_direction * omega * self.y   # Velocity at the blade section due to the rotor rotation
         Rot_M = np.array([[np.sin(position_rotor), -np.cos(position_rotor)],
@@ -196,34 +214,28 @@ class BladeSection:
         :param inflow_data: data regarding the inflow field, namely the uniform induced inflow field, induced inflow
         velocity and a lambda function that computes the linear induced field depending on the blade element distance
         from the hub and angle with respect to the inflow. ["v0", "lambda_0", "induced_velocity_func"(r, psi), "R"]
-        :return:
+        :return: the velocity experienced by the blade section used in the lift equation and the angle of attack
         """
         self.stall = False
+
+        # Compute the angle between the speed vector and the blade of the current blade section (azimuth angle: psi)
         Vxy_angle = np.arctan2(rotor_speed[1], rotor_speed[0])
         rotor_speed_vector = np.array([rotor_speed[0, 0], rotor_speed[1, 0]])
         blade_position_vector = np.array([np.cos(position_rotor), np.sin(position_rotor)])
         inter_vector_angle = np.arccos(np.dot(rotor_speed_vector, blade_position_vector) / np.linalg.norm(rotor_speed_vector))
         blade_angle = position_rotor
-        if blade_angle > np.pi:
+        if blade_angle > np.pi:  # Keep the angle within [-pi, pi]
             blade_angle = -(2*np.pi-position_rotor)
-        if blade_angle < Vxy_angle:
+        if blade_angle < Vxy_angle:    # Transformation from blade angle coordinate frame to azimuth coordinate frame
             inter_vector_angle = -inter_vector_angle
         psi = np.pi + self.rotation_direction * inter_vector_angle
 
-
-        # blade_angle = position_rotor
-        # if blade_angle > np.pi:
-        #     blade_angle = -(np.pi-position_rotor % np.pi)
-        #     Vxy_angle = -Vxy_angle
-        # psi = np.pi + self.rotation_direction * (blade_angle+Vxy_angle)
-
         # Computation of the induced velocity
-        # vi = inflow_data["v0"]
         vi = inflow_data["induced_velocity_func"](self.y, psi)
 
         # The following expression is wrong. In all papers r is meant as the distance of the blade element to the rotor
-        # hub
-        # vi = inflow_data["induced_velocity_func"](self.y / inflow_data["R"], psi)
+        # hub, instead of the distance to the hub as a percentage of the blade length (as in the equation below)
+        # vi = inflow_data["induced_velocity_func"](self.y / inflow_data["R"], psi)  # WRONG
 
         # Compute the velocities of the vehicle and the angle of attack
         Vx, V_total = self.compute_velocity(omega, position_rotor, rotor_speed, vi)
@@ -237,7 +249,7 @@ class BladeSection:
         :param term_exponent: the term of the equation that we desire to compute
         :param V: velocity seen by the blade section
         :param aoa: angle of attack seen by the blade section
-        :return:
+        :return: contribution of lift to thrust
         """
         dL = self.S * V**2 * aoa**term_exponent
         dT = dL * np.cos(self.twist-aoa)
@@ -253,7 +265,7 @@ class BladeSection:
         :param term_exponent: the term of the equation that we desire to compute
         :param V: velocity seen by the blade section
         :param aoa: angle of attack seen by the blade section
-        :return:
+        :return: contribution of drag to thrust
         """
         dD = self.S * V**2 * aoa**term_exponent
         dT = -dD * np.sin(self.twist-aoa)
@@ -267,7 +279,7 @@ class BladeSection:
         :param term_exponent: the term of the equation that we desire to compute
         :param V: velocity seen by the blade section
         :param aoa: angle of attack seen by the blade section
-        :return:
+        :return: contribution of lift to torque
         """
         dL = self.S * V**2 * aoa**term_exponent
         dQ = -dL * np.sin(self.twist-aoa) * self.y * self.rotation_direction
@@ -283,7 +295,7 @@ class BladeSection:
         :param term_exponent: the term of the equation that we desire to compute
         :param V: velocity seen by the blade section
         :param aoa: angle of attack seen by the blade section
-        :return:
+        :return: contribution of drag to torque
         """
         dD = self.S * V**2 * aoa**term_exponent
         dQ = -dD * np.cos(self.twist-aoa) * self.y * self.rotation_direction

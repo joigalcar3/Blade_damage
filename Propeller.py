@@ -19,27 +19,35 @@ from collections import defaultdict
 from scipy.optimize import minimize
 
 from Blade import Blade
-from helper_func import compute_P52, compute_beta, compute_Fn, compute_psi, plot_cla, \
+from helper_func import compute_P52, compute_beta, compute_Fn, compute_psi, plot_cla, compute_R_BI, \
     plot_coeffs_params_blade_contribution, iteration_printer, optimize, multi_figure_storage, plot_inputs, personal_opt
 from aero_data import *
 
-__author__ = "Jose Ignacio de Alvear Cardenas"
+__author__ = "Jose Ignacio de Alvear Cardenas (GitHub: @joigalcar3)"
 __copyright__ = "Copyright 2022, Jose Ignacio de Alvear Cardenas"
 __credits__ = ["Jose Ignacio de Alvear Cardenas"]
 __license__ = "MIT"
 __version__ = "1.0.1 (04/04/2022)"
 __maintainer__ = "Jose Ignacio de Alvear Cardenas"
-__email__ = "j.i.dealvearcardenas@student.tudelft.nl"
-__status__ = "Development"
+__email__ = "jialvear@hotmail.com"
+__status__ = "Stable"
 
 
 # Class of propeller that contains blade objects
 class Propeller:
     """
-    Method that stores information about the propeller
+    A class representing a propeller and its characteristics.
+
+    Attributes:
+        l (float): Distance from the propellers to the body y-axis [m].
+        b (float): Distance from the propellers to the body x-axis [m].
+        d (np.array): Array representing propeller blade coordinates.
+        signr (int): Sign for propeller rotation direction.
+        SN (list): List of signs for each blade.
+        g (float): Acceleration due to gravity [m/s^2].
     """
-    l = 0.0875  # distance from the propellers to the body y-axis
-    b = 0.1150  # distance from the propellers to the body x-axis
+    l = 0.0875  # Bebop 2
+    b = 0.1150  # Bebop 2
     d = np.array([[l, -b, 0],
                   [l, b, 0],
                   [-l, b, 0],
@@ -51,6 +59,23 @@ class Propeller:
     def __init__(self, propeller_number, number_blades, chords, hs, radius_hub, healthy_propeller_mass,
                  percentage_hub_m, angle_first_blade, start_twist, final_twist, broken_percentage=0,
                  plot_chords_twist=False):
+        """
+        Initialize a Propeller instance.
+
+        :param propeller_number: Propeller number.
+        :param number_blades: Number of blades.
+        :param chords: List of chord lengths.
+        :param hs: Length of each trapezoid segment.
+        :param radius_hub: Radius of the propeller hub.
+        :param healthy_propeller_mass: Healthy propeller mass.
+        :param percentage_hub_m: Percentage of the total mass that is the hub mass.
+        :param angle_first_blade: Angle of the first blade with respect to the propeller coordinate system.
+        :param start_twist: Root twist angle.
+        :param final_twist: Tip twist angle.
+        :param broken_percentage: Percentage of the blade that is broken. Defaults to 0.
+        :param plot_chords_twist: Whether to plot chord and twist. Defaults to False.
+        :return: None
+        """
         self.propeller_number = propeller_number
         self.number_blades = number_blades
         self.chords = chords
@@ -78,8 +103,8 @@ class Propeller:
 
     def reset_propeller(self, broken_percentage):
         """
-        Method to reset the propeller to the default values and change its broken degree
-        :return:
+        Method to reset the propeller to the default values and change its broken degree.
+        :return: None
         """
         self.broken_percentage = broken_percentage
         self.blades = []
@@ -96,10 +121,10 @@ class Propeller:
     def create_blades(self):
         """
         Function that creates each of the blades objects that are part of a propeller
-        :return:
+        :return: None
         """
         current_angle = self.angle_first_blade
-        angle_step = 2 * np.pi / self.number_blades
+        angle_step = 2 * np.pi / self.number_blades  # The angle between blades
         for i in range(self.number_blades):
             if isinstance(self.broken_percentage, list):
                 bp = self.broken_percentage[i]
@@ -115,7 +140,7 @@ class Propeller:
         """
         Function that computes the location of the cg, the area and the mass of each of the blades, as well as the mass
         of the complete propeller by summing the hub mass with the computed blades' masses.
-        :return:
+        :return: None
         """
         if not self.blades:
             self.create_blades()
@@ -125,6 +150,8 @@ class Propeller:
             blade.compute_blade_params()
             blade_mass = blade.compute_blade_mass(self.healthy_blade_m)
             blades_mass += blade_mass
+
+        # Compute mass of the complete propeller
         self.propeller_mass = blades_mass + self.healthy_propeller_mass * self.percentage_hub_m / 100
 
     def compute_cg_location(self):
@@ -156,33 +183,16 @@ class Propeller:
         if self.cg_r is None:
             self.compute_cg_location()
 
-        # Centrifugal force
+        # Centrifugal force in the propeller coordinate frame
         F_centrifugal = self.propeller_mass * omega ** 2 * self.cg_r
         angle_cg = np.arctan2(self.cg_y, self.cg_x) + self.rotation_angle
         Fx_centrifugal = F_centrifugal * np.cos(angle_cg)
         Fy_centrifugal = F_centrifugal * np.sin(angle_cg)
         F_centrifugal_vector = np.array([[Fx_centrifugal], [Fy_centrifugal], [0]])
 
-        # Moments caused by the shift in cg
+        # Moments caused by the shift in cg in the propeller coordinate frame
         M = self.propeller_mass * self.g * self.cg_r
-        phi = attitude[0, 0]
-        theta = attitude[1, 0]
-        psi = attitude[2, 0]
-        # R_IB = np.array([[np.cos(psi) * np.cos(theta),
-        #                   np.cos(psi) * np.sin(theta) * np.sin(phi) - np.sin(psi) * np.cos(phi),
-        #                   np.cos(psi) * np.sin(theta) * np.cos(phi) + np.sin(psi) * np.sin(phi)],
-        #                  [np.sin(psi) * np.cos(theta),
-        #                   np.sin(psi) * np.sin(theta) * np.sin(phi) + np.cos(psi) * np.cos(phi),
-        #                   np.sin(psi) * np.sin(theta) * cos(phi) - np.cos(psi) * np.sin(phi)],
-        #                  [-np.sin(theta), np.cos(theta) * np.sin(phi), np.cos(theta) * np.cos(phi)]])
-
-        R_BI = np.array([[np.cos(theta) * np.cos(psi), np.cos(theta) * np.sin(psi), -np.sin(theta)],
-                         [np.sin(phi) * np.sin(theta) * np.cos(psi) - np.cos(phi) * np.sin(psi),
-                          np.sin(phi) * np.sin(theta) * np.sin(psi) + np.cos(phi) * np.cos(psi),
-                          np.sin(phi) * np.cos(theta)],
-                         [np.cos(phi) * np.sin(theta) * np.cos(psi) + np.sin(phi) * np.sin(psi),
-                          np.cos(phi) * np.sin(theta) * np.sin(psi) - np.sin(phi) * np.cos(psi),
-                          np.cos(phi) * np.cos(theta)]])
+        R_BI = compute_R_BI(attitude)
 
         # Compute the vector of the gravity force passing through the current center of gravity in the body frame
         Fg_I = np.array([[0], [0], [self.g * self.propeller_mass]])
@@ -199,35 +209,45 @@ class Propeller:
         M_vector = np.cross(r_vector.T, Fg_b.T).T
         F_vector = F_centrifugal_vector + Fg_broken_segment_b
 
-        assert isclose(np.linalg.norm(M_vector), M, abs_tol=1e-6), f"The expected moment magnitude is {M}, " \
-                                                                   f"whereas the magnitude of the computed vector " \
-                                                                   f"is {np.linalg.norm(M_vector)}."
+        # Perform sanity check with the magnitude of the moment vector
+        if all(i == 0 for i in attitude):
+            assert isclose(np.linalg.norm(M_vector), M, abs_tol=1e-6), f"The expected moment magnitude is {M}, " \
+                                                                       f"whereas the magnitude of the computed vector " \
+                                                                       f"is {np.linalg.norm(M_vector)}."
 
         return F_vector, M_vector
 
     def compute_lift_torque_matlab(self, body_velocity, pqr, omega, rho=1.225):
         """
-        Function that computes the lift of a propeller using the identified polynomials from the aerodynamic model.
+        Function that computes the lift of a propeller using the identified polynomials from the gray-box
+        aerodynamic model. The equations in this function have been exported from the work of Sihao Sun:
+        "Aerodynamic model identification of a quadrotor subjected to rotor failures in the high-speed flight regime."
         :param body_velocity: velocity of the drone in the body reference frame
         :param pqr: rotational velocities of the drone
         :param omega: rotational velocity of the propeller
         :param rho: air density
-        :return:
+        :return: thrust and torque
         """
+        # Compute the velocity of the propeller due to the linear and angular drone velocities
         self.propeller_velocity = np.cross(pqr.T, self.d[[self.propeller_number], :]).T + body_velocity
         u, v, w = self.propeller_velocity[:].flatten()
         R = sum(self.hs) + self.radius_hub  # radius of the propeller
 
-        va = np.sqrt(u ** 2 + v ** 2 + w ** 2)  # airspeed
+        # Compute the airspeed experienced by the rotor
+        va = np.sqrt(u ** 2 + v ** 2 + w ** 2)
+
+        # Compute the advance ratio
         vv = 0 if (omega * R) == 0 else min(va / (omega * R), 0.6)  # ratio of the airspeed and the tangential velocity
+
+        # Compute the blade angle of attack
         alpha = 0 if np.sqrt(u ** 2 + v ** 2) == 0 else np.arctan(w / np.sqrt(u ** 2 + v ** 2)) * (180 / np.pi)
 
-        P52_comp = compute_P52(alpha, vv).flatten()
-        Ct = np.dot(P52_comp, k_Ct0.flatten())
-
+        # Compute horizontal advance ratio and variable similar to the sideslip angle
         mu = np.sqrt(u ** 2 + v ** 2) / (omega * R)
         lc = w / (omega * R)
 
+        # Compute torque and thrust coefficient corrections from the identified data in the gray-box aerodynamic model
+        # research
         if u == 0 and v == 0:
             dCt = 0
             dCq = 0
@@ -245,7 +265,11 @@ class Propeller:
             dCq = 1 / (1 + np.exp(-6 * (vh - 1))) * dCq
 
         dynhead = rho * omega ** 2 * R ** 2
-        area = np.pi * R ** 2
+        area = np.pi * R ** 2  # Area of the circle covered by the rotating propeller
+
+        # Computations for the thrust
+        P52_comp = compute_P52(alpha, vv).flatten()  # array of 5th degree polynomial parameters
+        Ct = np.dot(P52_comp, k_Ct0.flatten())  # thrust coefficient
         T = (Ct + dCt) * dynhead * area
 
         # Computations for the torque
@@ -255,6 +279,14 @@ class Propeller:
         return T, N
 
     def update_rotation_angle(self, omega, delta_t):
+        """
+        Method that updates the rotation angle of the propeller given its rotational rate and the time that has passed
+        since the last update. It is important to keep track of this angle to understand the location of each blade and
+        compute their experienced velocity and angle of attack
+        :param omega: propeller rotational rate
+        :param delta_t: time passed since last update
+        :return: current rotation angle of the propeller
+        """
         self.omega = omega
         self.rotation_angle += self.omega * delta_t * self.SN[self.propeller_number]
         if self.rotation_angle < 0:
@@ -263,9 +295,14 @@ class Propeller:
         return self.rotation_angle
 
     def set_rotation_angle(self, rotation_angle):
+        """
+        Method to change the rotation angle of the propeller to a given value
+        :param rotation_angle: given propeller rotation angle
+        :return:
+        """
         self.rotation_angle = rotation_angle
 
-    def generate_ls_dp_input(self, min_w, max_w, va):
+    def generate_ls_dp_input(self, min_w, max_w, va=4):
         """
         Method that creates the input velocities for the creation of a data point for the least squares
         :param min_w: the minimum vertical velocity
@@ -275,10 +312,10 @@ class Propeller:
         """
         pqr = np.array([[0], [0], [0]])
         w = random.uniform(min_w, max_w)
-        # sign = 1 if random.random() < 0.5 else -1
-        # va_local = random.uniform(max(abs(w), 2), va)  # new
-        # u = sign * np.sqrt(va_local ** 2 - w ** 2)  # new
-        # u = sign * np.sqrt(va ** 2 - w ** 2)  # new
+        # sign = 1 if random.random() < 0.5 else -1  # uncomment for simulating sampling scheme 1 or 2 from App. C
+        # u = sign * np.sqrt(va ** 2 - w ** 2)  # uncomment for simulating sampling scheme 1 from App. C
+        # va_local = random.uniform(max(abs(w), 2), va)  # uncomment for simulating sampling scheme 2 from App. C
+        # u = sign * np.sqrt(va_local ** 2 - w ** 2)  # uncomment for simulating sampling scheme 2 from App. C
         u = random.uniform(-3, 3)
         body_velocity = np.array([[u], [0], [w]])
         omega = random.uniform(300, 1256+1)  # [rad/s]
@@ -291,13 +328,14 @@ class Propeller:
                            LS_method="OLS", W_matrix=None, start_plot=-30, finish_plot=30, switch_avg_rot=True,
                            n_rot_steps=10, optimization_method="LS", min_method="Nelder-Mead", switch_constraints=False):
         """
-        Function that computes the cl-alpha coefficients using Least Squares. In contrast with the compute_cla_coeffs
-        method, here the average of a complete rotation is taken for the coefficients, instead of just one instantaneous
-        propeller rotated position. As seen by many papers, we are taking the integral from 0 to 2pi with respect to
-        dpsi. However, here it is done numerically by computing the coefficients at some blade rotated positions and
-        later dividing the coefficients by the number of rotated positions.
-        :param LS_method: Least Squares method used: OLS, WLS, GLS
-        :param W_matrix: the matrix used for WLS
+        Main method that computes the cl-alpha coefficients using Least Squares. The average of a complete rotation is
+        taken for the coefficients, instead of just one instantaneous propeller rotated position. As seen by many
+        papers, we are taking the integral from 0 to 2pi with respect to dpsi. However, here it is done numerically by
+        computing the coefficients at some blade rotated positions and later dividing the coefficients by the number of
+        rotated positions.
+        :param LS_method: Least Squares method used: Ordinary Least Squares (OLS), Weighted LS (WLS), Generalised LS
+        (GLS)
+        :param W_matrix: the weight matrix used for WLS
         :param finish_plot: last angle of attack to plot
         :param start_plot: first angle of attack to plot
         :param number_samples: the number of samples that will be taken in order to obtain the cla curve
@@ -306,22 +344,26 @@ class Propeller:
         :param va: the airspeed velocity
         :param rho: the air density
         :param number_sections: number of sections to split the blade
-        :param degree_cla: the polynomial degree of the Cl-alpha curve
-        :param degree_cda: the degree of the polynomial that we want to use to approximate the Cd-a curve
+        :param degree_cla: the polynomial degree that we want to use to approximate the Cl-alpha curve
+        :param degree_cda: the polynomial degree that we want to use to approximate the Cd-alpha curve
         :param activate_plotting: whether the cl-alpha curve is plotted at the end
         :param activate_params_blade_contribution_plotting: switch for the activation of the plots that show the
-         contribution of each blade to the parameters used to identify the lift and drag coefficients
-        :param switch_avg_rot: whether the average of a complete rotation needs to be used for the identification
+        contribution of each blade to the parameters used to identify the lift and drag coefficients
+        :param switch_avg_rot: whether the average of a complete rotation needs to be used for the identification or
+        only one instance in time
         :param n_rot_steps: number of propeller positions used when taking the average/integral
         :param optimization_method: optimization method used for the computation of the cl and cd coefficients
-        :param min_method: optimization method used in scipy.minimization
-        :param switch_constraints: whether constraints should be used in the optimization
-        :return:
+        :param min_method: optimization method used in scipy.minimization when solving the optimization problem that
+        computes the Cd/a and Cl/a curves
+        :param switch_constraints: whether constraints should be used in the optimization that computes the Cd/a and
+        Cl/acurves
+        :return: the dictionary containing all the inputs used to generate the synthetic data from the Matlab
+        (gray-box aerodynamic) model, the A matrix, and the b and x vectors
         """
-        A = np.zeros((number_samples * 2, degree_cla + degree_cda + 2))
-        b = np.zeros((number_samples * 2, 1))
-        rot_angles = np.linspace(0, 2 * np.pi, n_rot_steps+1)[:-1]
-        aoa_storage = defaultdict(list)
+        A = np.zeros((number_samples * 2, degree_cla + degree_cda + 2))  # Coefficient matrix
+        b = np.zeros((number_samples * 2, 1))  # Observed data vector
+        rot_angles = np.linspace(0, 2 * np.pi, n_rot_steps+1)[:-1]  # Rotation angles considered for average computation
+        aoa_storage = defaultdict(list)  # Dictionary for the storage of the angles of attack observed by blade sections
         current_time = time()
         input_storage = defaultdict(list)
         input_storage['title'].append({'body_velocity': "Linear body velocity inputs",
@@ -330,6 +372,7 @@ class Propeller:
         input_storage['ylabel'].append({'body_velocity': "Linear body velocity [m/s]",
                                         'pqr': "Angular body velocity [rad/s]",
                                         'omega': "Propeller rotational velocity [rad/s]"})
+        # Start sample collection
         for i in range(number_samples):
             # Print the time that has passed with respect to the last iteration
             current_time = iteration_printer(i, current_time)
@@ -337,6 +380,7 @@ class Propeller:
             # Compute the current scenario conditions
             T = -1
             while T < 0:
+                # Generate input conditions for gray-box aerodynamic model
                 body_velocity, pqr, omega = self.generate_ls_dp_input(min_w, max_w, va)
 
                 # Compute the term corresponding to the b component of LS
@@ -352,11 +396,13 @@ class Propeller:
             # Compute the uniform induced inflow and induced velocity
             inflow_data = self.compute_induced_inflow(T, rho, omega)
 
-            # Compute the terms corresponding to the A matrix of LS
+            # Compute the terms corresponding to a single row of the A matrix for LS
             LS_terms_blades = [np.zeros((2, degree_cla + degree_cda + 2))] * len(self.blades)
-            if not switch_avg_rot:
+            if not switch_avg_rot:  # In the case that we compute the value at a single rotation and not averaged
                 rot_angles = [0]
                 n_rot_steps = 1
+
+            # For each rotated angle of the propeller compute the LS terms
             for rot_angle in rot_angles:
                 blade_number = 0
                 for blade in self.blades:
@@ -365,19 +411,21 @@ class Propeller:
                     LS_terms, aoa_storage = blade.compute_LS_params(number_sections, degree_cla, degree_cda, omega,
                                                                     rot_angle, self.propeller_velocity,
                                                                     aoa_storage, inflow_data=inflow_data)
+                    # The contribution of each rotation to the A matrix row is already averaged with the number of
+                    # rotations considered
                     A[2 * i:2 * i + 2, :] += LS_terms / n_rot_steps
                     LS_terms_blades[blade_number] = LS_terms / n_rot_steps
                     blade_number += 1
             if activate_params_blade_contribution_plotting:
                 plot_coeffs_params_blade_contribution(LS_terms_blades, [T, N])
 
-        # Carry out the Least Squares
+        # Perform Least Squares
         x = optimize(A, b, optimization_method, LS_method=LS_method, W_matrix=W_matrix, degree_cla=degree_cla,
                      degree_cda=degree_cda, min_angle=0, max_angle=finish_plot,
                      min_method=min_method, switch_constraints=switch_constraints, warm_starts=None)
-        # x = compute_LS(LS_method, W_matrix, A, b)
 
-        # Plot the resulting cla and cda curves
+        # Plot the resulting cla and cda curves, the angles of attack seen by each blade section and inputs used to
+        # create the thrust and torque dataset from the gray-box aerodynamic model
         if activate_plotting:
             plot_cla(x, A, b, aoa_storage, start_plot, finish_plot, degree_cla, degree_cda)
             plot_inputs(input_storage)
@@ -401,35 +449,34 @@ class Propeller:
         else:
             tpp_V_angle = 0
 
-        # Function to minimize, initial condition and bounds
+        # Computation of the uniform induced velocity and inflow
+        # Function to minimize
         min_func = lambda x: abs(T - 2 * rho * A * x[0] * np.sqrt((V_inf * np.cos(tpp_V_angle)) ** 2 +
                                                                   (V_inf * np.sin(tpp_V_angle) + x[0]) ** 2))
 
-        # # Alternative approach with own gradient descend function. Same result and better time
+        # Appendix A of the paper: "Blade Element Theory Model for UAV Blade Damage Simulation" compares two approaches
+        # for solving this minimization problem, namely the Nelder-Mead optimization or a variant of gradient and
+        # descent developed by the author which shows better results in terms of efficiency and performance. Hence, here
+        # the in-house developed approach is used.
+        # --> 1. Nelder Mead approach for optimization (uncomment the lines below and comment out the gradient descent
+        # approach)
+        # x0 = np.array([4.5])  # initial condition
+        # bnds = ((0, 20),)     # bounds
+        # v0 = minimize(min_func, x0, method='Nelder-Mead', tol=1e-6, options={'disp': False}, bounds=bnds).x[0]
+
+        # --> 2. Alternative approach with own gradient descend function. Same result and better time.
         min_func_2 = lambda x: T - 2 * rho * A * x[0] * np.sqrt((V_inf * np.cos(tpp_V_angle)) ** 2 +
                                                                 (V_inf * np.sin(tpp_V_angle) + x[0]) ** 2)
         der_func = lambda x: (-2 * rho * A * np.sqrt((V_inf * np.cos(tpp_V_angle)) ** 2 + (V_inf * np.sin(tpp_V_angle) + x) ** 2) -
                               2 * rho * A * x * (V_inf * np.sin(tpp_V_angle) + x) /
                               (np.sqrt((V_inf * np.cos(tpp_V_angle)) ** 2 +
                                        (V_inf * np.sin(tpp_V_angle) + x) ** 2))) * min_func_2([x]) / min_func([x])
-        # x0 = np.array([4.5])
-        # bnds = ((0, 20),)
-
-        # Uniform induced velocity and inflow
-        # now_time = time()
-        # v0 = minimize(min_func, x0, method='Nelder-Mead', tol=1e-6, options={'disp': False}, bounds=bnds).x[0]
-        # then_time = time()
-        # scipy_time = then_time-now_time
         x0 = np.array([4.5])
-        # now_time = time()
-        # V0_2 = personal_opt(der_func, x0, min_func)
         v0 = personal_opt(der_func, x0, min_func)[0]
-        # then_time = time()
-        # personal_time = then_time-now_time
-        # if abs(V0_2-v0)>1e-3:
-        #     print("hola")
-        # print("ERROR_DIFFERENCE = ", V0_2-v0, "TIME = ", scipy_time-personal_time)
         lambda_0 = v0 / (omega * R)
+
+        # Decide whether to use the linear or uniform induced inflow models. For instance, if the vehicle is hovering,
+        # the uniform inflow model is used
         if V_inf != 0 and np.abs(self.propeller_velocity[0, 0])+np.abs(self.propeller_velocity[1, 0]) != 0:
             # Compute wake skew angle
             mu_x = V_inf * np.cos(tpp_V_angle) / (omega * R)
@@ -444,8 +491,7 @@ class Propeller:
             induced_velocity_func = lambda r, psi: lambda_0 * (1 + kx * r * np.cos(psi) + ky * r * np.sin(psi)) * omega * R
         else:
             induced_velocity_func = lambda r, psi: v0
-        # induced_velocity_func = lambda r, psi: np.zeros(1)
-        # induced_velocity_func = lambda r, psi: 0
+        # induced_velocity_func = lambda r, psi: np.zeros(1)  # uncomment to simulate that induced velocity is zero
         # Dictionary containing the uniform and the linear induced inflow information, namely: the uniform induced
         # inflow (lambda_0), the uniform induced velocity (v0), the induced velocity function and the propeller radius.
         inflow_data = {"lambda_0": lambda_0, "v0": v0, "induced_velocity_func": induced_velocity_func, "R": R}
@@ -461,7 +507,7 @@ class Propeller:
         :param cla_coeffs: the coefficients that relate the angle of attack to the airfoil lift coefficient
         :param cda_coeffs: the coefficients that relate the angle of attack to the airfoil drag coefficient
         :param inflow_data: the induced inflow information obtained from the compute_induced_inflow method
-        :return:
+        :return: the thrust and the moments in the x and y direction for the healthy and damaged blade sections
         """
         # Create the blades in the case that they were not created
         if not self.blades:
@@ -492,7 +538,7 @@ class Propeller:
         :param cla_coeffs: the coefficients that relate the angle of attack to the airfoil lift coefficient
         :param cda_coeffs: the coefficients that relate the angle of attack to the airfoil drag coefficient
         :param inflow_data: the induced inflow information obtained from the compute_induced_inflow method
-        :return:
+        :return: the torque and the forces in the x and y direction for the healthy and damaged blade sections
         """
         # Create the blades in the case that they were not created
         if not self.blades:
@@ -524,7 +570,7 @@ class Propeller:
         :param body_velocity: the body 3D linear velocity
         :param pqr: the body 3D angular velocity
         :param rho: the air density
-        :return:
+        :return: the aerodynamic forces and moments for the damaged blade sections
         """
         # Create the blades in the case that they were not created
         if not self.blades:
@@ -555,7 +601,7 @@ class Propeller:
         :param body_velocity: the body 3D linear velocity
         :param pqr: the body 3D angular velocity
         :param rho: the air density
-        :return:
+        :return: the aerodynamic forces and moments for the healthy blade sections
         """
         # Create the blades in the case that they were not created
         if not self.blades:
@@ -576,7 +622,8 @@ class Propeller:
 
         return F_healthy, M_healthy
 
-    def compute_mass_aero_FM(self, number_sections, omega, attitude, cla_coeffs, cda_coeffs, body_velocity, pqr, rho=1.225):
+    def compute_mass_aero_FM(self, number_sections, omega, attitude, cla_coeffs, cda_coeffs, body_velocity, pqr,
+                             rho=1.225):
         """
         Method to compute the forces and moments caused by the aerodynamic and mass changes
         :param number_sections: total number of sections in which a healthy blade is split up
@@ -587,7 +634,7 @@ class Propeller:
         :param body_velocity: the body 3D linear velocity
         :param pqr: the body 3D angular velocity
         :param rho: the air density
-        :return:
+        :return: the forces and the moments for the damaged blade sections
         """
         # Computation of forces and moments that derive from the change in mass
         F_cg, M_cg = self.compute_cg_forces_moments(omega, attitude)
@@ -603,7 +650,7 @@ class Propeller:
     def compute_mass_aero_healthy_FM(self, number_sections, omega, attitude, cla_coeffs, cda_coeffs, body_velocity, pqr,
                                      rho=1.225):
         """
-        Method to compute the forces and moments caused by the aerodynamic and mass changes
+        Method to compute the forces and moments caused by the aerodynamics and mass of the remaining blade sections
         :param number_sections: total number of sections in which a healthy blade is split up
         :param omega: the rotation rate of the propeller
         :param attitude: attitude of the drone in the form of Euler angles
@@ -612,10 +659,15 @@ class Propeller:
         :param body_velocity: the body 3D linear velocity
         :param pqr: the body 3D angular velocity
         :param rho: the air density
-        :return:
+        :return: the forces and the moments for the healthy blade sections
         """
         # Computation of forces and moments that derive from the change in mass
         F_cg, M_cg = self.compute_cg_forces_moments(omega, attitude)
+
+        # Correction of cg forces
+        R_BI = compute_R_BI(attitude)
+        Fg_healthy_b = np.matmul(R_BI, np.array([[0], [0], [self.g * self.healthy_propeller_mass]]))
+        F_cg += Fg_healthy_b
 
         # Computation of moments and forces derived from the loss in an aerodynamic surface
         F_healthy, M_healthy = self.compute_aero_healhty_FM(number_sections, omega, cla_coeffs, cda_coeffs,
