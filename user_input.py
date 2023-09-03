@@ -3,15 +3,14 @@
 Provides the input from the user, as well as information from the propeller.
 """
 
-
-__author__ = "Jose Ignacio de Alvear Cardenas"
+__author__ = "Jose Ignacio de Alvear Cardenas (GitHub: @joigalcar3)"
 __copyright__ = "Copyright 2022, Jose Ignacio de Alvear Cardenas"
 __credits__ = ["Jose Ignacio de Alvear Cardenas"]
 __license__ = "MIT"
-__version__ = "1.0.1 (04/04/2022)"
+__version__ = "1.0.2 (21/12/2022)"
 __maintainer__ = "Jose Ignacio de Alvear Cardenas"
-__email__ = "j.i.dealvearcardenas@student.tudelft.nl"
-__status__ = "Development"
+__email__ = "jialvear@hotmail.com"
+__status__ = "Stable"
 
 
 # Modules to import
@@ -26,7 +25,6 @@ mpl.rcParams['pdf.fonttype'] = 42
 mpl.rcParams['ps.fonttype'] = 42
 mpl.rcParams['font.family'] = 'Arial'
 mpl.rcParams['grid.alpha'] = 0.5
-# mpl.use('Agg')
 mpl.use('TkAgg')
 font = {'size': 42,
         'family': "Arial"}
@@ -53,35 +51,39 @@ length_trapezoids_rt_lst = [first_segment_length, second_segment_length]  # list
 
 
 # User input
-percentage_broken_blade_length = [100, 100, 100]   # [%]
+percentage_broken_blade_length = [20, 0, 0]            # [%] percentage of broken length for each blade
 angle_first_blade = 0                 # [deg] angle of the first blade with respect to the propeller coord. frame
-n_blade_segment_lst = list(np.arange(100, 150, 50))               # [-] number of sections in which a single blade is divided
-number_samples_lst = list(np.arange(16000, 17000, 1000))                 # [-] number of data points for the model identification
+n_blade_segment_lst = list(np.arange(100, 150, 50))         # [-] number of sections in which a single blade is divided
+number_samples_lst = list(np.arange(16000, 17000, 1000))    # [-] number of data points for the model identification
 degree_cla = 2                        # [-] degree of the cl alpha curve polynomial
 degree_cda = 2                        # [-] degree of the cd alpha curve polynomial
 start_cla_plot = -10                  # [deg] initial alpha value to plot of the cl and cd curves
 finish_cla_plot = 30                  # [deg] last alpha value to plot of the cl and cd curves
-min_w = -2.5                            # [m/s] minimum vertical velocity considered -2
-max_w = -0.5                         # [m/s] maximum vertical velocity considered -0.5
+min_w = -2.5                          # [m/s] minimum vertical velocity considered
+max_w = -0.5                          # [m/s] maximum vertical velocity considered
 va = 4                                # [m/s] airspeed used for all scenarios
+
 LS_method = "GLS"       # the type of least squares used for the identification of the drag and lift coefficients
 n_rot_steps = 10        # The number of propeller positions used for taking the average
-optimization_method = 'min'   # Whether the opt. method should be Least Squares ("LS") or a scipy.minimization ("min")
-min_method = "SLSQP"   # Nonlinear optimization method used to minimize Ax-b: SLSQP, COBYLA
-file_name_suffix = "mod"
+optimization_method = 'min'   # Whether the opt. method should be Least Squares ("LS") or a scipy.minimization ("min"). The minimization method is used when constraints are required
+min_method = "SLSQP"    # Nonlinear optimization method used to minimize Ax-b: SLSQP, COBYLA
+file_name_suffix = "mod"  # User desired added text at the end of saved filenames for differentiation
+
 coefficients_identification = False    # Whether the coefficients need to be identified
 switch_chords_twist_plotting = False  # Whether the chord and twist distribution should be plotted
-activate_params_blade_contribution_plotting = False  # Plot that shows how each blade section contributes to the coeffs
+activate_params_blade_contribution_plotting = False  # Whether the contribution of each blade section to the lift and drag coeffs should be plotted
 switch_recycle_samples = False  # Whether previous samples should be used
 switch_avg_rot = True   # Switch to activate whether the instantaneous propeller state is used or the rotation average
 switch_constraints = True    # Whether the optimization should be constrained. Only for COBYLA, SLSQP and trust-constr
-switch_coeffs_grid_plot = True if len(n_blade_segment_lst)+len(number_samples_lst) > 2 else False  # Whether to plot cl and cd coeffs wrt the #blade sections and #data points
+switch_coeffs_grid_plot = True if len(n_blade_segment_lst)+len(number_samples_lst) > 2 else False  # Whether to plot cl and cd coeffs wrt the number of blade sections and number of data points
+
 switch_plot_mass = False  # if True, the mass time simulation will be plotted
-switch_plot_aero = True  # if True, the aero time simulation will be plotted
+switch_plot_aero = False  # if True, the aero time simulation will be plotted
 switch_plot_mass_aero = False  # if True, the aero and mass time simulation will be plotted
 switch_plot_healthy_mass_aero = False  # if True, the aero and mass time simulation will be plotted of the healthy BSs
-switch_plot_mass_aero_blade_percentage = False  # if True, the aero and mass maximum and minimum time simulation values will be plotted wrt blade damage
+switch_plot_mass_aero_blade_percentage = True  # if True, the aero and mass maximum and minimum time simulation values will be plotted wrt blade damage
 
+# INFORMATION
 # Only for COBYLA, SLSQP and trust-constr accept constraints. Equality constraint means that the constraint function
 # result is to be zero whereas inequality means that it is to be non-negative.
 # SLSQP: Minimize a scalar function of one or more variables using Sequential Least Squares Programming
@@ -91,27 +93,17 @@ switch_plot_mass_aero_blade_percentage = False  # if True, the aero and mass max
 
 
 # Basic drone state information
-body_velocity = np.array([[3, 0, 0]]).T
-# wind_speed = 12
-# alpha_angle = 75
-# body_velocity = np.array(
-#         [[wind_speed * np.cos(np.deg2rad(alpha_angle)), 0, -wind_speed * np.sin(np.deg2rad(alpha_angle))]]).T
+body_velocity = np.array([[3, 0, -1]]).T  # [m/s] drone linear velocity
 if abs(body_velocity[0, 0]) < 1e-12: body_velocity[0, 0] = 0
 if abs(body_velocity[1, 0]) < 1e-12: body_velocity[1, 0] = 0
 if abs(body_velocity[2, 0]) < 1e-12: body_velocity[2, 0] = 0
-pqr = np.array([[0, 0, 0]]).T
-attitude = np.array([[0, 0, 0]]).T
-omega = 600         # [rad/s]
+pqr = np.array([[0, 0, 0]]).T       # [rad/s] drone angular velocity
+attitude = np.array([[0, 0, 0]]).T  # [rad] drone attitude
+omega = 600                         # [rad/s]
 cla_coeffs = np.array([2.41574347e-01, 5.15236959e+00, -1.22553556e+01])
 cda_coeffs = np.array([9.22164567e-03, -7.92542848e-01, 1.51364609e+01])
-# cla_coeffs = np.array([2.93049304e-01, 4.47483030e+00, -1.16086661e+01])
-# cda_coeffs = np.array([9.33962372e-03, -8.02682724e-01, 1.53301563e+01])
-# body_velocity = np.array([[6.30750292e-05, -1.73107276e-06, -6.45597247e-05]]).T
-# pqr = np.array([[0, 0, 0]]).T
-# attitude = np.array([[0, 0, 0]]).T
-# omega = 900       # [rad/s]
-rho = 1.225  # [kg/m^3]
-total_time = 0.25
-dt = 0.01
+rho = 1.225         # [kg/m^3] air density
+total_time = 0.25   # [s] total simulation time
+dt = 0.001           # [s] time step
 propeller_number = 0
 

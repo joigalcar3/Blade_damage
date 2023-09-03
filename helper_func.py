@@ -14,6 +14,7 @@ from math import radians, degrees
 import time
 import os
 import pickle
+import inspect
 from matplotlib.backends.backend_pdf import PdfPages
 from matplotlib.ticker import MultipleLocator, ScalarFormatter, IndexLocator
 from mpl_toolkits.axes_grid1 import make_axes_locatable
@@ -24,7 +25,7 @@ __author__ = "Jose Ignacio de Alvear Cardenas (GitHub: @joigalcar3)"
 __copyright__ = "Copyright 2022, Jose Ignacio de Alvear Cardenas"
 __credits__ = ["Jose Ignacio de Alvear Cardenas"]
 __license__ = "MIT"
-__version__ = "1.0.1 (04/04/2022)"
+__version__ = "1.0.2 (21/12/2022)"
 __maintainer__ = "Jose Ignacio de Alvear Cardenas"
 __email__ = "jialvear@hotmail.com"
 __status__ = "Stable"
@@ -746,13 +747,14 @@ def store_Abu_data(A, b, u, n_blade_segment, number_samples, va, min_method, nam
 
 def check_Abu_data(n_blade_segment, number_samples, va, min_method, name_suffix):
     """
-    Function to check the number of samples available and the number of samples to be computed. NOT TESTED
+    Function to check the number of samples available and the number of samples to still be computed.
     :param n_blade_segment: number of blade sections
     :param number_samples: the total number of samples desired
     :param va: the airspeed
     :param min_method: the method used for optimization
     :param name_suffix: component added at the end of the filename
-    :return:
+    :return: the number of available files within the desired file and the number of samples that still need to be
+    computed
     """
     folder = 'Saved_data_points/b'
 
@@ -777,13 +779,13 @@ def check_Abu_data(n_blade_segment, number_samples, va, min_method, name_suffix)
 
 def retrieve_Abu_data(n_blade_segment, number_samples, va, min_method, name_suffix):
     """
-    Function to retrieve samples from the saved files. NOT TESTED
+    Function to retrieve samples from the saved files.
     :param n_blade_segment: number of blade sections
     :param number_samples: the total number of samples desired
     :param va: the airspeed
     :param min_method: the method used for optimization
     :param name_suffix: component added at the end of the filename
-    :return:
+    :return: the A, b and u arrays of the chosen file
     """
     name_lst = ["A", "b", "u"]
     extension = [".npy", ".npy", ""]
@@ -803,10 +805,11 @@ def retrieve_Abu_data(n_blade_segment, number_samples, va, min_method, name_suff
         filenames_lst_lst = [filename_lst[:2] + filename_lst[3:-2] for filename_lst in filenames_lst]
         check_filename_existence = desired_filename_lst in filenames_lst_lst
 
+        # If the file does not exist, return error
         if not check_filename_existence:
             raise Exception(f"The searched file ({desired_filename_lst} does not exist.")
 
-        # If file exists, add already existing data points
+        # If file exists, return already existing data points
         index = filenames_lst_lst.index(desired_filename_lst)
         old_filename = os.path.join(folder, filenames[index])
         if extension[i] == ".npy":
@@ -834,13 +837,13 @@ def personal_opt(func, x0, den):
     :param func: function to minimize
     :param x0: initial condition
     :param den: the denominator of the derivative of the func function
-    :return:
+    :return: the solution of the function func
     """
     x = x0
-    alpha = 0.5
-    th = 0.01
-    counter = 0
-    previous_der = func(x)
+    alpha = 0.5  # the learning rate
+    th = 0.01  # threshold to stop the iterative process
+    counter = 0  # current counter number
+    previous_der = func(x)  # value of the function at the initial condition
     for i in range(10000):
         # If the denominator of the function is zero, then we have reached the desired point
         if den([x]) < 1e-10:
@@ -867,16 +870,77 @@ def personal_opt(func, x0, den):
             counter = 0
     return x
 
+
+def FM_time_simulation(propeller, propeller_func, propeller_func_input, mass_aero="a", more_print="", switch_plot=True):
+    """
+    Function to run a time-based simulation of some type of forces and moments. The type is determined by the
+    propeller_func provided as input
+    :param propeller: propeller object
+    :param propeller_func: propeller function used for the generation of forces and moments
+    :param propeller_func_input: dictionary containing all the potential inputs to the propeller_func
+    :param mass_aero: the type of plot labels
+    :param more_print: whether some additional text should be included in the progress message
+    :param switch_plot: whether plots should be generated
+    :return: arrays with the forces and moments experienced at every time step
+    """
+    def get_input_names(func):
+        """
+        Get arguments names from function
+        :param func: function from which the arguments shall be retrieved
+        :return: the function arguments
+        """
+        return inspect.getfullargspec(func)[0]
+
+    def filter_dict(dict_, keys):
+        """
+        Given a dictionary, filter key-value combinations given some keys
+        :param dict_: dictionary that should be filtered
+        :param keys: keys that should be used for filtering
+        :return: the new filtered dictionary
+        """
+        return {k: dict_[k] for k in keys if k != "self"}
+
+    # Required parameters are extracted from the input dictionary
+    n_points = propeller_func_input["n_points"]
+    rotation_angle = propeller_func_input["rotation_angle"]
+    omega = propeller_func_input["omega"]
+    total_time = propeller_func_input["total_time"]
+    dt = propeller_func_input["dt"]
+
+    # Time-based simulation
+    F_lst = np.zeros((3, n_points))
+    M_lst = np.zeros((3, n_points))
+    rotation_angle_lst = np.zeros(n_points)  # the rotation angle of the propeller is started at 0
+    propeller.set_rotation_angle(rotation_angle)
+
+    # Extract the parameters of the dict that are useful for the chosen propeller function
+    filtered_propeller_func_input = filter_dict(propeller_func_input, get_input_names(propeller_func))
+    for i in range(n_points):
+        if not i % 10:
+            print(f'{more_print}Iteration {i} out of {n_points - 1}')
+        F, M = propeller_func(**filtered_propeller_func_input)
+        F_lst[:, i] = F.flatten()
+        M_lst[:, i] = M.flatten()
+        rotation_angle_lst[i] = rotation_angle
+        rotation_angle = propeller.update_rotation_angle(omega, dt)  # with every time step, update the prop rotation
+
+    # Plotting the forces and moments
+    if switch_plot:
+        plot_FM(np.arange(0, total_time + dt, dt), rotation_angle_lst, F_lst, M_lst, mass_aero=mass_aero)
+    return F_lst, M_lst
+
 # Plotters
 # %%
 def plot_chord_twist(chord, twist):
     """
-    Two plots:
+    Two plots in a single figure:
         - The first plot shows the chord of the blade
         - The second plot shows the twist of the blade along its span
+
+    This figure is Figure 9.11 in the thesis.
     :param chord: list of chord values
     :param twist: list of twist values
-    :return:
+    :return: None
     """
     global figure_number
 
@@ -889,9 +953,11 @@ def plot_chord_twist(chord, twist):
     plt.plot(x_chord, y_chord_2, 'r-', linewidth=4)
     plt.grid(True)
 
-    y_chord_3 = [i*1000 for i in chord]
-    x_twist = range(len(twist))
-    y_twist = [degrees(i) for i in twist]
+    y_chord_3 = [i*1000 for i in chord]  # transform values from meters to mm
+    x_twist = range(len(twist))  # compute twist values
+    y_twist = [degrees(i) for i in twist]  # transform twist values to degrees
+
+    # Plot the chord values along the blade span. The commented out l3 is a marker at the location of the maximum chord
     plt.figure(figure_number)
     figure_number += 1
     ax1 = plt.gca()
@@ -907,6 +973,7 @@ def plot_chord_twist(chord, twist):
     ax1.yaxis.label.set_color('#1f77b4')
     plt.grid(True)
 
+    # Plot the twist values along the blade span
     ax2 = ax1.twinx()
     l5 = ax2.plot(x_twist, y_twist, color='#ff7f0e', linestyle='--', linewidth=4)
     ax2.set_ylabel("$\\theta$ [deg]")
@@ -920,8 +987,9 @@ def plot_chord_twist(chord, twist):
 
 def plot_cla(x, A, b, aoa_storage, start_alpha, finish_alpha, degree_cla, degree_cda):
     """
-    Function that plots the cl-alpha and cd-alpha curves. It also plots the average angle of attack seen by each blade
-    element in the form of a box plot
+    Function that plots the approximated cl-alpha and cd-alpha curves, and the verification of those approximations. In
+    that regard, it plots the thrust and torque absolute errors and their autocorrelations. It also plots the average
+    angle of attack seen by each blade element in the form of a box plot
     :param x: vector of unknown states
     :param A: regression matrix
     :param b: observation vector
@@ -930,7 +998,7 @@ def plot_cla(x, A, b, aoa_storage, start_alpha, finish_alpha, degree_cla, degree
     :param finish_alpha: last angle of attack to plot
     :param degree_cla: degree of the cl-alpha polynomial
     :param degree_cda: degree of the cd-alpha polynomial
-    :return:
+    :return: None
     """
     global figure_number
 
@@ -938,7 +1006,7 @@ def plot_cla(x, A, b, aoa_storage, start_alpha, finish_alpha, degree_cla, degree
         """
         Creates the data points for the cl-alpha curve given an angle of attach and the cl-alpha coefficients
         :param alpha: angle of attack
-        :return:
+        :return: returns the value of cl given an angle of attack
         """
         cl = 0
         for i in range(degree_cla + 1):
@@ -949,7 +1017,7 @@ def plot_cla(x, A, b, aoa_storage, start_alpha, finish_alpha, degree_cla, degree
         """
         Creates the data points for the cd-alpha curve given an angle of attach and the cd-alpha coefficients
         :param alpha: angle of attack
-        :return:
+        :return: returns the value of cd given an angle of attack
         """
         cd = 0
         for i in range(degree_cla + 1, degree_cla + degree_cda + 2):
@@ -962,21 +1030,24 @@ def plot_cla(x, A, b, aoa_storage, start_alpha, finish_alpha, degree_cla, degree
     cls = [cla_equation(radians(aoa)) for aoa in alphas]
     cds = [cda_equation(radians(aoa)) for aoa in alphas]
 
-    # Plot the cl-alpha curve
+    # Obtain the title for the cl-alpha plot
     title = "Cl-alpha curve: Cl = "
     for i in range(degree_cla + 1):
         title += f'{np.round(x[i].item(),2)} $\\alpha^{i}$'
         if i != degree_cla:
             if x[i+1].item() > 0:
                 title += '+'
+
+    # Plot the cl-alpha curve. For the final formatted cl-alpha plot found in the thesis and paper,
+    # go to ClCd_plotter.py
     fig = plt.figure(figure_number)
     figure_number += 1
     plt.plot(alphas, cls, 'r-', linewidth=4)
     plt.xlabel("$\\alpha$ [deg]")
     plt.ylabel("$C_l$ [-]")
-    # plt.title(title)
+    # plt.title(title)  # commented out for the paper plots
     ax = plt.gca()
-    if (max(cls) - min(cls)) / 0.1 > 20:
+    if (max(cls) - min(cls)) / 0.1 > 20:  # different discretizations of the y-axis depending on y values encountered
         y_discretisation = 0.5
     elif (max(cls) - min(cls)) / 0.1 > 2:
         y_discretisation = 0.2
@@ -987,7 +1058,8 @@ def plot_cla(x, A, b, aoa_storage, start_alpha, finish_alpha, degree_cla, degree
     plt.grid(True)
     fig.subplots_adjust(left=0.13, top=0.95, right=0.99, bottom=0.13)
 
-    # Plot the cd-alpha curve
+    # Plot the cd-alpha curve. For the final formatted cd-alpha plot found in the thesis and paper,
+    # go to ClCd_plotter.py
     title = "Cd-alpha curve: Cd = "
     for i in range(degree_cla + 1, degree_cla + degree_cda + 2):
         title += f'{np.round(x[i].item(),2)} $\\alpha^{i-(degree_cla + 1)}$'
@@ -1007,19 +1079,19 @@ def plot_cla(x, A, b, aoa_storage, start_alpha, finish_alpha, degree_cla, degree
         y_discretisation = 0.1
     else:
         y_discretisation = 0.01
-    ax.yaxis.set_major_locator(MultipleLocator(y_discretisation))
-    ax.xaxis.set_major_locator(MultipleLocator(5))
+    ax.yaxis.set_major_locator(MultipleLocator(y_discretisation))  # y-axis discretisation
+    ax.xaxis.set_major_locator(MultipleLocator(5))  # x-axis discretization
     plt.grid(True)
     fig.subplots_adjust(left=0.13, top=0.95, right=0.99, bottom=0.13)
 
     # Compare the results predicted by multiplying A and x, with respect to the observations in b for the thrust
-    b_approx = np.reshape(np.matmul(A, x), [-1,1])
+    b_approx = np.reshape(np.matmul(A, x), [-1, 1])  # predicted observed data resulting from identified x vector
     number_p = A.shape[0]
     data_points = range(int(number_p / 2))
     plt.figure(figure_number)
     figure_number += 1
-    plt.plot(data_points, b[::2], 'ro')
-    plt.plot(data_points, b_approx[::2], 'bo')
+    plt.plot(data_points, b[::2], 'ro')  # color measured values with red
+    plt.plot(data_points, b_approx[::2], 'bo')  # color approximate values with blue
     plt.xlabel("Data point [-]")
     plt.ylabel("Thrust value")
     plt.title("Thrust: Ax vs b")
@@ -1028,8 +1100,8 @@ def plot_cla(x, A, b, aoa_storage, start_alpha, finish_alpha, degree_cla, degree
     # Compare the results predicted by multiplying A and x, with respect to the observations in b for the torque
     plt.figure(figure_number)
     figure_number += 1
-    plt.plot(data_points, b[1::2], 'ro')
-    plt.plot(data_points, b_approx[1::2], 'bo')
+    plt.plot(data_points, b[1::2], 'ro')  # color measured values with red
+    plt.plot(data_points, b_approx[1::2], 'bo')  # color approximate values with blue
     plt.xlabel("Data point [-]")
     plt.ylabel("Torque value")
     plt.title("Torque: Ax vs b")
@@ -1037,18 +1109,18 @@ def plot_cla(x, A, b, aoa_storage, start_alpha, finish_alpha, degree_cla, degree
 
     # Computation of error
     error = b - b_approx
-    error_T = error[::2]
-    error_Q = error[1::2]
-    average_error_T = np.mean(error_T)
-    average_error_Q = np.mean(error_Q)
-    percentage_error = [error[i, 0] / b[i, 0] * 100 for i in range(error.shape[0])]
+    error_T = error[::2]  # absolute error in thrust
+    error_Q = error[1::2]  # absolute error in torque
+    average_error_T = np.mean(error_T)  # mean thrust error
+    average_error_Q = np.mean(error_Q)  # mean torque error
+    percentage_error = [error[i, 0] / b[i, 0] * 100 for i in range(error.shape[0])]  # relative error
     print(f"Mean error thrust: {average_error_T} [N].")
     print(f"Mean error torque: {average_error_Q} [Nm].")
     print(f"Maximum error percentage: {max(percentage_error)}%")
 
     # Durbin Watson autocorrelation statistical test
-    DW_T = durbin_watson(error_T)
-    DW_Q = durbin_watson(error_Q)
+    DW_T = durbin_watson(error_T)  # for thrust
+    DW_Q = durbin_watson(error_Q)  # for torque
     print(f"Durbin Watson test for thrust: {np.round(DW_T[0],3)}")
     print(f"Durbin Watson test for torque: {np.round(DW_Q[0],3)}")
 
@@ -1061,105 +1133,74 @@ def plot_cla(x, A, b, aoa_storage, start_alpha, finish_alpha, degree_cla, degree
     RMSE_T2 = np.sqrt(np.mean(np.power(error_T, 2))) / np.std(b[::2])
     RMSE_Q2 = np.sqrt(np.mean(np.power(error_Q, 2))) / np.std(b[1::2])
 
-    # Plot of error for thrust
+    # THRUST
+    # Print RMSE error for thrust
     text_T_RMSE = f'Diff RMSE = {np.round(RMSE_T1, 2)} and NRMSE$_\\tau$ = {np.round(RMSE_T2, 2)}'
     print(text_T_RMSE)
-    # text_T_mean = f'Mean = {np.round(average_error_T, 4)}'
+
+    # Obtain legend for thrust error
+    average_error_T_scientific = np.format_float_scientific(average_error_T,2)  # average T error in scientific form
+    index_e = average_error_T_scientific.index("e")
+    T_mean_label_number = average_error_T_scientific[:index_e] + \
+                          f"$\\cdot$10$^{{{int(average_error_T_scientific[index_e + 1:])}}}$"  # label in 10^x notation
+    T_mean_text = f'Mean = {T_mean_label_number} [N]'
+
+    # Plot thrust absolute error and mean. Figures 9.14 and 9.15
     fig = plt.figure(figure_number)
     figure_number += 1
     plt.plot(data_points, error[::2], 'g-', alpha=0.5)
-    average_error_T_scientific = np.format_float_scientific(average_error_T,2)
-    index_e = average_error_T_scientific.index("e")
-    T_mean_label_number = average_error_T_scientific[:index_e] + f"$\\cdot$10$^{{{int(average_error_T_scientific[index_e + 1:])}}}$"
-    T_mean_text = f'Mean = {T_mean_label_number} [N]'
     plt.plot(data_points, np.repeat(average_error_T, len(data_points)), 'k--', label=T_mean_text, linewidth=3)
     plt.xlabel("Data point [-]")
     plt.ylabel("$\\epsilon_\\tau$ [N]")
-    # plt.title("Approximation error thrust")
+    # plt.title("Approximation error thrust")  # comment out title for paper plots
     plt.legend(loc=3)
     plt.grid(True)
     fig.subplots_adjust(left=0.13, top=0.95, right=0.99, bottom=0.13)
 
-    # Plot of error for torque
-    text_Q_RMSE = f'Diff RMSE = {np.round(RMSE_Q1, 2)} and NRMSE$_Q$ = {np.round(RMSE_Q2, 2)}'
-    print(text_Q_RMSE)
-    # text_Q_mean = f'Mean = {np.round(average_error_Q, 4)}'
-    fig=plt.figure(figure_number)
-    figure_number += 1
-    plt.plot(data_points, error[1::2], 'g-', alpha=0.5)
-    average_error_Q_scientific = np.format_float_scientific(average_error_Q,2)
-    index_e = average_error_Q_scientific.index("e")
-    Q_mean_label_number = average_error_Q_scientific[:index_e] + f"$\\cdot$10$^{{{int(average_error_Q_scientific[index_e + 1:])}}}$"
-    Q_mean_text = f'Mean = {Q_mean_label_number} [Nm]'
-    plt.plot(data_points, np.repeat(average_error_Q, len(data_points)), 'k--', label=Q_mean_text, linewidth=3)
-    plt.xlabel("Data point [-]")
-    plt.ylabel("$\\epsilon_Q$ [Nm]")
-    # plt.title("Approximation error torque")
-    plt.grid(True)
-    plt.legend(loc=3)
-    fig.subplots_adjust(left=0.14, top=0.95, right=0.99, bottom=0.13)
-
-    ## Validation plots to observe the whiteness of the residual. This function was commented out since the acorr
-    ## function from matplotlib is able to do exactly the same
-    # n_shifts = error_T.shape[0] - 1
-    # lst_T = np.ones(2 * n_shifts - 1)
-    # lst_Q = np.ones(2 * n_shifts - 1)
-    # lst_T_center = np.matmul(error_T.T, error_T)
-    # lst_Q_center = np.matmul(error_Q.T, error_Q)
-    # lst_T[n_shifts] = 1
-    # lst_Q[n_shifts] = 1
-    # for i in range(1, n_shifts):
-    #     value_T = np.matmul(error_T[:-i, :].T, error_T[i:, :])
-    #     value_Q = np.matmul(error_Q[:-i, :].T, error_Q[i:, :])
-    #     lst_T[n_shifts - 1 + i] = value_T / lst_T_center
-    #     lst_T[n_shifts - 1 - i] = value_T / lst_T_center
-    #     lst_Q[n_shifts - 1 + i] = value_Q / lst_Q_center
-    #     lst_Q[n_shifts - 1 - i] = value_Q / lst_Q_center
-
-    ## Plot corresponding to the thrust
-    # x_axis = list(range(-n_shifts + 1, n_shifts))
-    # conf = 1.96 / np.sqrt(error_T.shape[0])
-    # plt.figure(figure_number)
-    # figure_number += 1
-    # plt.plot(x_axis, lst_T, 'b-')
-    # plt.axhline(y=conf, xmin=-error_T.shape[0], xmax=error_T.shape[0], color="red", linestyle="--")
-    # plt.axhline(y=-conf, xmin=-error_T.shape[0], xmax=error_T.shape[0], color="red", linestyle="--")
-    # plt.xlabel("Number of lags")
-    # plt.ylabel("Error autocorrelation")
-    # plt.title("Autocorrelation of model residual: Thrust")
-    # plt.grid(True)
-    # plt.legend()
-    # plt.show()
-
-    conf = 1.96 / np.sqrt(error_T.shape[0])
+    # Validation plot to observe the whiteness of the residual. Figures 9.18, 9.19 in the thesis and Figs. 60 and 61 of
+    # paper: "Blade Element Theory Model for UAV Blade Damage Simulation"
+    conf = 1.96 / np.sqrt(error_T.shape[0])  # 95% confidence interval of normally distributed data
     fig = plt.figure(figure_number)
-    ax = plt.gca()
     figure_number += 1
+    ax = plt.gca()
     ax.acorr(np.reshape(error_T, [-1, ]), maxlags=None, usevlines=False, normed=True, linestyle="-", marker='',
-             color="b", linewidth=3)
+             color="b", linewidth=3)  # Compute the correlations
     plt.axhline(y=conf, xmin=-error_T.shape[0], xmax=error_T.shape[0], color="red", linestyle="--", linewidth=3,
-                label="95% confidence bounds")
+                label="95% confidence bounds")  # compute the 95% confidence bounds
     plt.axhline(y=-conf, xmin=-error_T.shape[0], xmax=error_T.shape[0], color="red", linestyle="--", linewidth=3)
     plt.xlabel("Number of lags [-]")
     plt.ylabel("Normalised $\\epsilon_\\tau$ autocorrelation [-]")
-    # plt.title("Autocorrelation of model residual: Thrust")
+    # plt.title("Autocorrelation of model residual: Thrust")  # comment out title for paper plots
     plt.grid(True)
     plt.legend(loc='upper right')
     fig.subplots_adjust(left=0.12, top=0.95, right=0.99, bottom=0.13)
 
-    ## Plot corresponding to the torque
-    # plt.figure(figure_number)
-    # figure_number += 1
-    # plt.plot(x_axis, lst_Q, 'b-')
-    # plt.axhline(y=conf, xmin=-error_Q.shape[0], xmax=error_Q.shape[0], color="red", linestyle="--")
-    # plt.axhline(y=-conf, xmin=-error_Q.shape[0], xmax=error_Q.shape[0], color="red", linestyle="--")
-    # plt.xlabel("Number of lags")
-    # plt.ylabel("Error autocorrelation")
-    # plt.title("Autocorrelation of model residual: Torque")
-    # plt.grid(True)
-    # plt.legend()
-    # plt.show()
+    # TORQUE
+    # Print RMSE error for torque
+    text_Q_RMSE = f'Diff RMSE = {np.round(RMSE_Q1, 2)} and NRMSE$_Q$ = {np.round(RMSE_Q2, 2)}'
+    print(text_Q_RMSE)
 
+    # Obtain legend for torque error
+    average_error_Q_scientific = np.format_float_scientific(average_error_Q,2)  # average Q error in scientific form
+    index_e = average_error_Q_scientific.index("e")
+    Q_mean_label_number = average_error_Q_scientific[:index_e] + \
+                          f"$\\cdot$10$^{{{int(average_error_Q_scientific[index_e + 1:])}}}$"  # label in 10^x notation
+    Q_mean_text = f'Mean = {Q_mean_label_number} [Nm]'
+
+    # Plot of error for torque. Figures 9.16, 9.17
+    fig = plt.figure(figure_number)
+    figure_number += 1
+    plt.plot(data_points, error[1::2], 'g-', alpha=0.5)
+    plt.plot(data_points, np.repeat(average_error_Q, len(data_points)), 'k--', label=Q_mean_text, linewidth=3)
+    plt.xlabel("Data point [-]")
+    plt.ylabel("$\\epsilon_Q$ [Nm]")
+    # plt.title("Approximation error torque")  # comment out title for paper plots
+    plt.grid(True)
+    plt.legend(loc=3)
+    fig.subplots_adjust(left=0.14, top=0.95, right=0.99, bottom=0.13)
+
+    # Validation plot to observe the whiteness of the residuals. Figures 9.20, 9.21 in the thesis and Figs. 62 and 63 of
+    # paper: "Blade Element Theory Model for UAV Blade Damage Simulation"
     fig = plt.figure(figure_number)
     ax = plt.gca()
     figure_number += 1
@@ -1175,13 +1216,15 @@ def plot_cla(x, A, b, aoa_storage, start_alpha, finish_alpha, degree_cla, degree
     plt.legend(loc='upper right')
     fig.subplots_adjust(left=0.12, top=0.95, right=0.99, bottom=0.13)
 
+    # ANGLE OF ATTACK
     # Plot of the angles of attack seen by each of the selected blade sections. It is represented as a box plot such
-    # that it can be seen the average angle of attack as well as the range of alphas seen by its section.
-    if aoa_storage != None:
+    # that it can be seen the average angle of attack, as well as the range of alphas seen by its section. Figures 9.38,
+    # 9.39 in the thesis or Fig. 31 and 32 in paper: "Blade Element Theory Model for UAV Blade Damage Simulation"
+    if aoa_storage is not None:
         n_blade_sections = len(aoa_storage.keys())
         n_aoa = len(aoa_storage[0])
         flag = True
-        while flag:
+        while flag:  # keep plotting until user decides to stop plotting
             user_input = input(f'Out of {n_blade_sections} blade sections, which ones would you like to plot? '
                                f'Please give the start and end sections separated by a comma.')
 
@@ -1193,7 +1236,6 @@ def plot_cla(x, A, b, aoa_storage, start_alpha, finish_alpha, degree_cla, degree
             # Check that feasible blade sections have been given
             user_input = list(map(int, user_input.split(',')))
             start_section, end_section = user_input
-            start_section, end_section = [0, n_blade_sections-1]
             flag = False
             if start_section < 0 or end_section >= n_blade_sections:
                 print("Those blade section indices can not be applied")
@@ -1206,6 +1248,7 @@ def plot_cla(x, A, b, aoa_storage, start_alpha, finish_alpha, degree_cla, degree
                 counter = i - start_section
                 aoa_vectors[:, counter] = np.reshape(np.array(aoa_storage[i]), [-1, ])
 
+            # Box plot of the angle of attack as seen by each of the blade sections
             fig = plt.figure(figure_number)
             ax = plt.gca()
             figure_number += 1
@@ -1214,23 +1257,22 @@ def plot_cla(x, A, b, aoa_storage, start_alpha, finish_alpha, degree_cla, degree
             ax.xaxis.set_major_formatter(ScalarFormatter())
             plt.ylabel(r"$\alpha$ [deg]")
             plt.xlabel("Blade section number [-]")
-            # plt.ylabel(r"$\alpha$, deg")
-            # plt.xlabel("Blade section number")
             plt.grid(True, alpha=0.5)
             fig.subplots_adjust(left=0.09, top=0.95, right=0.97, bottom=0.13)
+            plt.show()
 
 
 def plot_inputs(inputs_dict):
     """
     Function to plot the inputs used for the data point generation
     :param inputs_dict: dictionary with the value of the inputs used
-    :return:
+    :return: None
     """
     global figure_number
     inputs = inputs_dict.keys()
     for key in inputs:
         if key != "ylabel" and key != "title":
-            if type(inputs_dict[key][0]) != float:
+            if type(inputs_dict[key][0]) != float:  # 3 subplots for variables with values along each axis (e.g. Vb)
                 fig = plt.figure(figure_number)
                 figure_number += 1
                 axes = fig.subplots(3, 1, gridspec_kw={'wspace': 0.5,'hspace': 0.5})
@@ -1244,7 +1286,7 @@ def plot_inputs(inputs_dict):
                     ax.grid(True)
                     counter += 1
                 fig.suptitle(inputs_dict["title"][0][key])
-            else:
+            else:  # 1 plot for variables with a single vaue (e.g. \omega)
                 plt.figure(figure_number)
                 figure_number += 1
                 plt.plot(inputs_dict[key], "bo")
@@ -1252,19 +1294,20 @@ def plot_inputs(inputs_dict):
                 plt.ylabel(inputs_dict["ylabel"][0][key])
                 plt.title(inputs_dict["title"][0][key])
                 plt.grid(True)
-                # plt.show()
+                plt.show()
 
 
 def plot_coeffs_map(coeffs_grid, degree_cla, degree_cda, x_coords, y_coords, switch_title=True):
     """
-    Function to plot the coefficients for different blade discretisations and number of data points
+    Function to plot the coefficients for different blade discretisations and number of data points. The plots
+    correspond to Figures D.1 and D.2 in the thesis
     :param coeffs_grid: identified cl and cd coefficients
     :param degree_cla: degree of cl polynomial
     :param degree_cda: degree of cd polynomial
     :param x_coords: the values of the x-axis
     :param y_coords: the values of the y-axis
     :param switch_title: whether the plots should have a title
-    :return:
+    :return: None
     """
     global figure_number
 
@@ -1288,14 +1331,14 @@ def plot_coeffs_map(coeffs_grid, degree_cla, degree_cda, x_coords, y_coords, swi
 def plot_derivative_coeffs_map(coeffs_grid, degree_cla, degree_cda, x_coords, y_coords, switch_title=True):
     """
     Function to plot the percentage change of the coefficients with respect to changes in the number of samples and the
-    blade discretisation
+    blade discretisation. The plots correspond to Figures D.3 and D.4 in the thesis.
     :param coeffs_grid: identified cl and cd coefficients
     :param degree_cla: degree of cl polynomial
     :param degree_cda: degree of cd polynomial
     :param x_coords: the values of the x-axis
     :param y_coords: the values of the y-axis
     :param switch_title: whether the plots should have a title
-    :return:
+    :return: None
     """
     # Computation of the axis coords
     x_step = x_coords[1]-x_coords[0]
@@ -1367,7 +1410,7 @@ def plot_MA_derivative_coeffs_map(coeffs_grid, degree_cla, degree_cda, x_coords,
                                   switch_title=True):
     """
     Function to plot the percentage change of the coefficients with respect to changes in the number of samples and the
-    blade discretisation
+    blade discretisation. This plots correspond to Figures D.6 and D.7 in the thesis.
     :param coeffs_grid: identified cl and cd coefficients
     :param degree_cla: degree of cl polynomial
     :param degree_cda: degree of cd polynomial
@@ -1376,7 +1419,7 @@ def plot_MA_derivative_coeffs_map(coeffs_grid, degree_cla, degree_cda, x_coords,
     :param horizon_length: length of the horizon used for the moving average
     :param threshold: the threshold used to determine the right number of data points and number of blades
     :param switch_title: whether the plots need to have title
-    :return:
+    :return: None
     """
     # Computation of the axis coords
     x_step = x_coords[1]-x_coords[0]
@@ -1392,7 +1435,7 @@ def plot_MA_derivative_coeffs_map(coeffs_grid, degree_cla, degree_cda, x_coords,
     y_coords_mesh_der_x = np.tile(np.reshape(y_coords_edges, [-1, 1]), (1, len(x_coords)))
     y_coords_mesh_der_y = np.tile(np.reshape(y_coords_edges_mod, [-1, 1]), (1, len(x_coords) + 1))
 
-    # Computation of the derivative coefficients
+    # Computation of the moving average of the derivative of the coefficients
     # Along the x_axis
     coeffs_grid_der_x = (coeffs_grid[:, 1:, :] - coeffs_grid[:, :-1, :]) / np.tile(coeffs_grid[:, [-1], :], (1, coeffs_grid.shape[1]-1, 1)) * 100
     MA_coeffs_grid_der_x = np.zeros(coeffs_grid_der_x.shape)
@@ -1402,6 +1445,7 @@ def plot_MA_derivative_coeffs_map(coeffs_grid, degree_cla, degree_cda, x_coords,
                 element = np.mean(coeffs_grid_der_x[row, max(0, column - horizon_length):column + 1, coeff])
                 MA_coeffs_grid_der_x[row, column, coeff] = element
 
+    # Along the y_axis
     coeffs_grid_der_y = (coeffs_grid[1:, :, :] - coeffs_grid[:-1, :, :]) / np.tile(coeffs_grid[[-1], :, :], (coeffs_grid.shape[0] - 1, 1, 1)) * 100
     MA_coeffs_grid_der_y = np.zeros(coeffs_grid_der_y.shape)
     for row in range(coeffs_grid_der_y.shape[0]):
@@ -1410,7 +1454,7 @@ def plot_MA_derivative_coeffs_map(coeffs_grid, degree_cla, degree_cda, x_coords,
                 element = np.mean(coeffs_grid_der_y[row, max(0, column - horizon_length):column + 1, coeff])
                 MA_coeffs_grid_der_y[row, column, coeff] = element
 
-    # Derivative along the number of data samples axis
+    # Moving average of the derivative along the number of data samples axis
     # Plot the cl coefficients
     coeff_plotter(MA_coeffs_grid_der_x[:, :, :degree_cla+1], degree_cla, "MA percentage change of the lift (q derivative)",
                   x_coords_mesh_der_x, y_coords_mesh_der_x, gradient=True, gradient_cb_min=-1, gradient_cb_max=1,
@@ -1423,7 +1467,7 @@ def plot_MA_derivative_coeffs_map(coeffs_grid, degree_cla, degree_cda, x_coords,
                   cbar_label_func=lambda c: f"$MA (D_q y_{{{c}}},10)\; [\\%]$",
                   switch_title=switch_title)
 
-    # Derivative along the number of blade sections axis
+    # Moving average of the derivative along the number of blade sections axis
     # Plot the cl coefficients
     coeff_plotter(MA_coeffs_grid_der_y[:, :, :degree_cla+1], degree_cla, "MA percentage change of the lift (n_bs derivative)",
                   x_coords_mesh_der_y, y_coords_mesh_der_y, gradient=True, gradient_cb_min=-1, gradient_cb_max=1,
@@ -1437,7 +1481,10 @@ def plot_MA_derivative_coeffs_map(coeffs_grid, degree_cla, degree_cda, x_coords,
                   switch_title=switch_title)
 
     # Using the maximum
-    # Plot the maximum values from the coefficients axis
+    # Plot the maximum values from the coefficients axis. As a result, the 6 plots that we have of the moving average
+    # of the derivative wrt the number of samples is collapsed into a single plot. For each n_bs and q combination,
+    # the MA of the derivative with the maximum value is stored. The same is done for the derivative wrt to the number
+    # of blade sections. The first plot from the next two plots corresponds to Figure D.8 of the thesis.
     MA_coeffs_grid_der_x_max = np.reshape(np.amax(np.abs(MA_coeffs_grid_der_x), axis=2),
                                           [coeffs_grid_der_x.shape[0], coeffs_grid_der_x.shape[1], 1])
     MA_coeffs_grid_der_y_max = np.reshape(np.amax(np.abs(MA_coeffs_grid_der_y), axis=2),
@@ -1453,16 +1500,21 @@ def plot_MA_derivative_coeffs_map(coeffs_grid, degree_cla, degree_cda, x_coords,
                   cbar_label_func=lambda c: "$g_{n_{bs}}(q, n_{bs})\; [\\%]$",
                   switch_title=switch_title)
 
-    # Computing the average along each of the axes
-    g_qa = np.mean(np.reshape(MA_coeffs_grid_der_x_max, [MA_coeffs_grid_der_x_max.shape[0], MA_coeffs_grid_der_x_max.shape[1]]), axis=0)
-    g_nbs = np.mean(np.reshape(MA_coeffs_grid_der_y_max, [MA_coeffs_grid_der_y_max.shape[0], MA_coeffs_grid_der_y_max.shape[1]]), axis=1)
+    # Computing the average along each of the axes. The previous plots are collapse along the n_bs or q axis. They are
+    # used to create the Figures D.9 and D.10 in the thesis.
+    g_qa = np.mean(np.reshape(MA_coeffs_grid_der_x_max,
+                              [MA_coeffs_grid_der_x_max.shape[0], MA_coeffs_grid_der_x_max.shape[1]]), axis=0)
+    g_nbs = np.mean(np.reshape(MA_coeffs_grid_der_y_max,
+                               [MA_coeffs_grid_der_y_max.shape[0], MA_coeffs_grid_der_y_max.shape[1]]), axis=1)
     print(MA_coeffs_grid_der_x_max.shape, g_qa.shape)
 
+    # Compute the plot collapsing the data along the q (number of samples) axis.
     global figure_number
     plt.figure(figure_number)
     figure_number += 1
     plt.plot(x_coords[1:], g_qa, linewidth=4)
-    plt.axhline(0.1, 0, x_coords[-1] + (x_coords[-1] - x_coords[-2]), color="black", alpha=0.6, linestyle="dashed", linewidth=4)
+    plt.axhline(0.1, 0, x_coords[-1] + (x_coords[-1] - x_coords[-2]), color="black", alpha=0.6, linestyle="dashed",
+                linewidth=4)
     ideal_point_g_qa_indeces = np.where(g_qa < threshold)[0]
     print(ideal_point_g_qa_indeces)
     if ideal_point_g_qa_indeces.shape[0] != 0:
@@ -1472,10 +1524,12 @@ def plot_MA_derivative_coeffs_map(coeffs_grid, degree_cla, degree_cda, x_coords,
     plt.ylabel("$h_q$(q) [%]")
     plt.grid(True)
 
+    # Compute the plot collapsing the data along the n_bs (number of blade sections) axis.
     plt.figure(figure_number)
     figure_number += 1
     plt.plot(y_coords[1:], g_nbs, linewidth=4)
-    plt.axhline(0.1, 0, y_coords[-1] + (y_coords[-1] - y_coords[-2]), color="black", alpha=0.6, linestyle="dashed", linewidth=4)
+    plt.axhline(0.1, 0, y_coords[-1] + (y_coords[-1] - y_coords[-2]), color="black", alpha=0.6, linestyle="dashed",
+                linewidth=4)
     ideal_point_g_nbs_indeces = np.where(g_nbs < threshold)[0]
     if ideal_point_g_nbs_indeces.shape[0] != 0:
         index = ideal_point_g_nbs_indeces[0]
@@ -1497,8 +1551,9 @@ def coeff_plotter(coeffs_grid_local, degree, coeff_type, X, Y, gradient=False, g
     :param gradient: whether the function is plotting a gradient
     :param gradient_cb_min: the lower bound for the colorbar
     :param gradient_cb_max: the higher bound for the colorbar
-    :param cbar_label: the label for the colorbar
-    :return:
+    :param cbar_label_func: the function to create the label for the colorbar
+    :param switch_title: whether the title of the plot should be printed (not done with thesis/paper plots)
+    :return: None
     """
     global figure_number
     fig = plt.figure(figure_number)
@@ -1508,7 +1563,8 @@ def coeff_plotter(coeffs_grid_local, degree, coeff_type, X, Y, gradient=False, g
     colorbar_lst = []
     for ax in np.array([axes]).flatten():
         if gradient:
-            im = ax.pcolormesh(X, Y, coeffs_grid_local[:, :, counter], vmin=gradient_cb_min, vmax=gradient_cb_max, cmap="viridis")
+            im = ax.pcolormesh(X, Y, coeffs_grid_local[:, :, counter], vmin=gradient_cb_min, vmax=gradient_cb_max,
+                               cmap="viridis")
         else:
             im = ax.pcolormesh(X, Y, coeffs_grid_local[:, :, counter], cmap="viridis")
         ax.set_xlabel("q [-]")
@@ -1516,55 +1572,58 @@ def coeff_plotter(coeffs_grid_local, degree, coeff_type, X, Y, gradient=False, g
         ax.yaxis.set_major_locator(MultipleLocator(200))
         ax.yaxis.set_minor_locator(IndexLocator(base=Y[1, 0]-Y[0, 0], offset=0))
         ax.xaxis.set_minor_locator(IndexLocator(base=X[0, 1]-X[0, 0], offset=0))
-        # ax.grid(b=True, which='minor')
-        # ax.grid(b=True, which='major')
-        # ax.set_xlim([1000, Y[-1, -1]])
         divider = make_axes_locatable(ax)
         cax = divider.append_axes('right', size='5%', pad=0.05)
         fig.colorbar(im, cax=cax, orientation='vertical', label=cbar_label_func(counter))
         ax.ticklabel_format(axis="y", style="sci", scilimits=(0, 1))
         cax.ticklabel_format(axis="y", style="sci", scilimits=(0, 1))
         colorbar_lst.append(cax)
-        # cbar.ax.tick_params(labelsize=)
         counter += 1
-    # string_colorbars_ticks = np.concatenate([cax.get_yticks().astype(str) for cax in colorbar_lst])
-    # significant_figures = []
-    # for string_colorbars_tick in string_colorbars_ticks:
-    #     if len(string_colorbars_tick) > 8:
-    #         if string_colorbars_tick[-1] == "9":
-    #             first_decimal_place = np.where(np.array(list(string_colorbars_tick[:-1])) != "9")[0][0]
-    #             last_decimal_place = np.where(np.array(list(string_colorbars_tick[:-1])) != "9")[0][-1]
-    #         else:
-    #             first_decimal_place = np.where(np.array(list(string_colorbars_tick[:-1])) != "0")[0][0]
-    #             last_decimal_place = np.where(np.array(list(string_colorbars_tick[:-1])) != "0")[0][-1]
-    #     else:
-    #         first_decimal_place = np.where(np.array(list(string_colorbars_tick)) != "0")[0][0]
-    #         last_decimal_place = len(string_colorbars_tick)
-    #     significant_figures.append(last_decimal_place-first_decimal_place)
-    # if max(significant_figures) > 5:
-    #     for i in colorbar_lst:
-    #         i.yaxis.set_label_coords(3.85, 0.5)
-    # else:
-    #     for i in colorbar_lst:
-    #         i.yaxis.set_label_coords(3, 0.5)
-
     fig.subplots_adjust(left=0.05, top=0.94, right=0.85, bottom=0.12)
     fig.set_size_inches(19.24, 10.55)
     if switch_title:
         fig.suptitle(f"Value of the {coeff_type} coefficients wrt. the number of samples and blade sections")
 
 
+def adjust_plot(f, ax_lst):
+    """
+    Method that contains the heuristic to compute the required distance from the y-axes for the y-axis label given the
+    length of the y-ticks. It also adjusts the size of the plot
+    :param f: the figure object
+    :param ax_lst: axis object
+    :return: None
+    """
+    # Heuristic to compute the required distance from the y-axes for the y-axis label given the length of the y-ticks
+    f_n_long_y_axis = 0
+    for axs in ax_lst:
+        f_n_long_y_axis += sum([j[j.index('.') + 1] != 'e' and j[j.index('.') + 1] != '0' and j[j.index('.') + 1] != '9'
+                                for j in [np.format_float_scientific(i) for i in axs.get_yticks()]])
+
+    for axs in ax_lst:
+        if f_n_long_y_axis == 0:
+            axs.yaxis.set_label_coords(-0.05, 0.5)
+        else:
+            axs.yaxis.set_label_coords(-0.095, 0.5)
+
+    f.subplots_adjust(left=0.13, top=0.95, right=0.99, bottom=0.13)
+
+
 def plot_FM(t, rotation_angle, F, M, mass_aero="m"):
     """
-    Method to plot the changes in force and moments due to the failure of a blade
+    Function to plot the changes in force and moments due to the failure of a blade. It is used for the creation of:
+        - Figures 9.22, 9.23, 9.24, 9.25, 9.26, 9.27, 9.30, 9.31 in the thesis
+        - Figs. 17, 18, 19, 20, 23, 24 of the paper: "Blade Element Theory Model for UAV Blade Damage Simulation"
     :param t: time vector
     :param rotation_angle: angle that the propeller has rotated
     :param F: 3D vector containing the forces
     :param M: 3D vector containing the moments
-    :return:
+    :param mass_aero: the type of forces and moments that are fed to the function, whether they are mass related,
+    aerodynamic related or something else
+    :return: None
     """
     global figure_number
 
+    # Plot of the propeller angle of rotation
     rotation_angle_deg = [degrees(i) for i in rotation_angle]
     plt.figure(figure_number)
     figure_number += 1
@@ -1574,13 +1633,15 @@ def plot_FM(t, rotation_angle, F, M, mass_aero="m"):
     plt.title("Evolution of propeller angle")
     plt.grid(True)
 
+    # Plot of the forces and moments in two plots of 3 subplots each
     f_f, ax_f_lst = plt.subplots(3, 1, sharex=True, gridspec_kw={'wspace': 0.5,'hspace': 0.3})
-    # f_f.suptitle("Evolution of Forces")
     f_m, ax_m_lst = plt.subplots(3, 1, sharex=True, gridspec_kw={'wspace': 0.5,'hspace': 0.3})
-    # f_m.suptitle("Evolution of Moments")
+    # f_f.suptitle("Evolution of Forces")  # commented out for the generation of paper plots
+    # f_m.suptitle("Evolution of Moments")  # commented out for the generation of paper plots
     figure_number += 2
     axis_names = ["x", "y", "z"]
-    for i in range(3):
+    for i in range(3):  # A subplot for each axis
+        # FORCES
         ax_f = ax_f_lst[i]
         ax_f.plot(t, F[i, :], linewidth=3)
 
@@ -1591,6 +1652,7 @@ def plot_FM(t, rotation_angle, F, M, mass_aero="m"):
         ax_f.ticklabel_format(axis="y", style="sci", scilimits=(-2, -7))
         ax_f.grid(True)
 
+        # MOMENTS
         ax_m = ax_m_lst[i]
         ax_m.plot(t, M[i, :], linewidth=3)
 
@@ -1603,59 +1665,45 @@ def plot_FM(t, rotation_angle, F, M, mass_aero="m"):
     ax_f.set_xlabel("Time [s]")
     ax_m.set_xlabel("Time [s]")
 
-    f_n_long_y_axis = 0
-    for axs in ax_f_lst:
-        f_n_long_y_axis += sum([j[j.index('.') + 1] != 'e' and j[j.index('.') + 1] != '0' and j[j.index('.') + 1] != '9'
-                                for j in [np.format_float_scientific(i) for i in axs.get_yticks()]])
-
-    m_n_long_y_axis = 0
-    for axs in ax_m_lst:
-        m_n_long_y_axis += sum([j[j.index('.') + 1] != 'e' and j[j.index('.') + 1] != '0' and j[j.index('.') + 1] != '9'
-                                for j in [np.format_float_scientific(i) for i in axs.get_yticks()]])
-
-    for axs in ax_f_lst:
-        if f_n_long_y_axis == 0:
-            axs.yaxis.set_label_coords(-0.05, 0.5)
-        else:
-            axs.yaxis.set_label_coords(-0.095, 0.5)
-
-    for axs in ax_m_lst:
-        if m_n_long_y_axis == 0:
-            axs.yaxis.set_label_coords(-0.05, 0.5)
-        else:
-            axs.yaxis.set_label_coords(-0.095, 0.5)
-    f_f.subplots_adjust(left=0.13, top=0.95, right=0.99, bottom=0.13)
-    f_m.subplots_adjust(left=0.13, top=0.95, right=0.99, bottom=0.13)
-    # plt.show()
-
+    # Adjust the format of the figure
+    adjust_plot(f_f, ax_f_lst)
+    adjust_plot(f_m, ax_m_lst)
+    plt.show()
 
 
 def plot_FM_multiple(t, F, M, mass_aero="m", x_axis_label="Blade damage [%]"):
     """
-    Method to plot the changes in force and moments due to the failure of a blade
+    Function to plot the changes in force and moments due to the failure of a blade. In contrast with the previous
+    function, multiple curves are plotted in the same graph. It is used for the creation of:
+        - Figures 9.28, 9.29, 9.32, 9.33, 9.34, 9.35 in the thesis
+        - Figs. 21, 22, 25, 26, 27, 28, 29, 30 of the paper: "Blade Element Theory Model for UAV Blade Damage Simulation"
     :param t: time vector
     :param F: 3D vector containing the forces
     :param M: 3D vector containing the moments
+    :param mass_aero: the type of forces and moments that are fed to the function, whether they are mass related,
+    aerodynamic related or something else
     :param x_axis_label: the label of the x axis
-    :return:
+    :return: None
     """
     global figure_number
-
-    f_f, ax_f_lst = plt.subplots(3, 1, sharex=True, gridspec_kw={'wspace': 0.5,'hspace': 0.3})
-    # f_f.suptitle("Evolution of Forces")
-    f_m, ax_m_lst = plt.subplots(3, 1, sharex=True, gridspec_kw={'wspace': 0.5,'hspace': 0.3})
-    # f_m.suptitle("Evolution of Moments")
     figure_number += 2
-    axis_names = ["x", "y", "z"]
+
+    # Plot of the forces and moments in two plots of 3 subplots each
+    f_f, ax_f_lst = plt.subplots(3, 1, sharex=True, gridspec_kw={'wspace': 0.5,'hspace': 0.3})
+    f_m, ax_m_lst = plt.subplots(3, 1, sharex=True, gridspec_kw={'wspace': 0.5,'hspace': 0.3})
+    # f_f.suptitle("Evolution of Forces")  # commented out for the generation of paper plots
+    # f_m.suptitle("Evolution of Moments")  # commented out for the generation of paper plots
+    axis_names = ["x", "y", "z"]  # A subplot for each axis
     number_curves = F.shape[2]
     for i in range(3):
         for j in range(number_curves):
+            # FORCES
             ax_f = ax_f_lst[i]
             ax_f.plot(t, F[i, :, j], linewidth=3)
 
-            if mass_aero == "a" or mass_aero == "m":
+            if mass_aero == "a" or mass_aero == "m":  # when either mass or aerodynamic effects are plotted
                 ax_f.set_ylabel(f"$F^P_{{{mass_aero}_{axis_names[i]}}}$ [N]")
-            elif mass_aero == "b":
+            elif mass_aero == "b":  # when both, mass and aerodynamic effects are plotted together
                 ax_f.set_ylabel(f"$F^P_{{._{axis_names[i]}}}$ [N]")
             else:
                 ax_f.set_ylabel(f"$\Delta F^P_{{{axis_names[i]}}}$ [N]")
@@ -1663,6 +1711,7 @@ def plot_FM_multiple(t, F, M, mass_aero="m", x_axis_label="Blade damage [%]"):
             ax_f.grid(True)
             f_f.tight_layout()
 
+            # MOMENTS
             ax_m = ax_m_lst[i]
             ax_m.plot(t, M[i, :, j], linewidth=3)
 
@@ -1675,39 +1724,26 @@ def plot_FM_multiple(t, F, M, mass_aero="m", x_axis_label="Blade damage [%]"):
             ax_m.ticklabel_format(axis="y", style="sci", scilimits=(-2, -7))
             ax_m.grid(True)
             f_m.tight_layout()
+
+    # Adjusting plots and providing x-axis label
     ax_f.set_xlabel(x_axis_label)
     ax_m.set_xlabel(x_axis_label)
-    f_f.subplots_adjust(left=0.13, top=0.95, right=0.99, bottom=0.13)
-    f_m.subplots_adjust(left=0.13, top=0.95, right=0.99, bottom=0.13)
 
-    f_n_long_y_axis = 0
-    for axs in ax_f_lst:
-        f_n_long_y_axis += sum([j[j.index('.') + 1] != 'e' and j[j.index('.') + 1] != '0' and j[j.index('.') + 1] != '9'
-                                for j in [np.format_float_scientific(i) for i in axs.get_yticks()]])
+    # Adjust the format of the figure
+    adjust_plot(f_f, ax_f_lst)
+    adjust_plot(f_m, ax_m_lst)
+    plt.show()
 
-    m_n_long_y_axis = 0
-    for axs in ax_m_lst:
-        m_n_long_y_axis += sum([j[j.index('.') + 1] != 'e' and j[j.index('.') + 1] != '0' and j[j.index('.') + 1] != '9'
-                                for j in [np.format_float_scientific(i) for i in axs.get_yticks()]])
-
-    for axs in ax_f_lst:
-        if f_n_long_y_axis == 0:
-            axs.yaxis.set_label_coords(-0.05, 0.5)
-        else:
-            axs.yaxis.set_label_coords(-0.095, 0.5)
-
-    for axs in ax_m_lst:
-        if m_n_long_y_axis == 0:
-            axs.yaxis.set_label_coords(-0.05, 0.5)
-        else:
-            axs.yaxis.set_label_coords(-0.095, 0.5)
 
 def plot_coeffs_params_blade_contribution(LS_terms, b):
     """
     Function that plots the contribution of each blade to the parameters used to identify the lift and drag coefficients
+    In the paper "Blade Element Theory Model for UAV Blade Damage Simulation", it is going to plot the contribution of
+    each blade to the terms in a row of the A matrix in Equation (46).
+    Unfortunately, the author did not find great use for the information in this plot.
     :param LS_terms: values used for the Least Squares for each of the blades
     :param b: the b matrix with the thrust and torque information
-    :return:
+    :return: None
     """
     n_blades = len(LS_terms)
     n_coeffs = LS_terms[0].shape[1]
@@ -1716,7 +1752,8 @@ def plot_coeffs_params_blade_contribution(LS_terms, b):
     blades_labels = [f'Blade {i + 1}' for i in range(n_blades)]
     y_labels = ['Thrust', 'Torque']
 
-    for i in range(2):
+    # One plot for thrust and another for torque
+    for i in range(len(y_labels)):
         previous = np.zeros(n_coeffs)
         ax[i].axhline(y=b[i], color='r', linestyle='-')
         for j in range(n_blades):
@@ -1731,7 +1768,7 @@ def plot_coeffs_params_blade_contribution(LS_terms, b):
         ax[i].grid(True)
 
     fig.suptitle('Blade contribution to coefficient params')
-    # plt.show()
+    plt.show()
 
 
 # multi_figure_storage("Saved_figures/500_dp_100_bs.pdf", figs=None, dpi=200)
@@ -1747,8 +1784,8 @@ def multi_figure_storage(filename, figs=None, dpi=200):
     :return:
     """
     pp = PdfPages(filename)
-    if figs is None:
+    if figs is None:  # In the case that no file names are provided, the open figures are retrieved
         figs = [plt.figure(n) for n in plt.get_fignums()]
-    for fig in figs:
+    for fig in figs:  # Save each of the found figures in pdf format
         fig.savefig(pp, dpi=dpi, format='pdf')
     pp.close()
