@@ -166,10 +166,6 @@ Assumptions:
 Hope you enjoy the code!! For any questions, comments or suggestions, 
 please reach out to me at [jialvear@hotmail.com](jialvear@hotmail.com).
 
-[comment]: <>(> [**Blade Element Theory Model for UAV Blade Damage Simulation**](http://arxiv.org/abs/2004.01177)
-[comment]: <>(> José Ignacio de Alvear Cárdenas, Coen de Visser,)
-[comment]: <>(> *AIAA technical report ([arXiv 2004.01177](http://arxiv.org/abs/2004.01177) 
-
 
     @inproceedings{dealvear2024BET,
       title={Blade Element Theory Model for UAV Blade Damage Simulation},
