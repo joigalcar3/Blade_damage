@@ -112,25 +112,6 @@ This will clone the repository. Then you can open the _user\_input.py_ file and 
 !python Blade_damage/main_general.py
 ```
 
-## Assumptions
-Next are listed the assumptions taken for the drag and lift coefficient coefficients polynomial curve
-identification and the computation of the moments and forces of the propeller.
-
-Assumptions:
-- Homogeneous mass along the blade: the centroid equals the location of the cg
-- The Bebop 2 blades are simplified as two trapezoids with parallel sides connected by the long parallel side
-- The twist decreases linearly from the root to the tip
-- The airfoil is constant throughout the blade
-- The cross flow along the span of the blade is ignored
-- Aeroelasticity effects are ignored
-- The root and tip losses are ignored
-- The induced velocity is computed with the simplified linear induced inflow
-- The nonlinear effects between (damaged) blades are not considered
-- The nonlinear aerodynamic effects between propellers are not considered.
-- The nonlinear aerodynamic effects between the propellers and the body frame are not considered
-- The data used for the cl cd identification is obtained from the Matlab model that provides the propeller thrust
-- The blade is cut parallel to the edge of the propeller such that the remaining polygon is still a trapezoid
-
 ## Implementation, results and conclusions
 The results of this work can be found in the author's Master thesis and paper:
 
@@ -160,6 +141,26 @@ These documents explain:
 [comment]: <> (Here is the resulting drag coefficient curve with respect to the angle of attack:)
 
 [comment]: <> (### Resulting forces and moments)
+
+## Assumptions
+Next are listed the assumptions taken for the drag and lift coefficient coefficients polynomial curve
+identification and the computation of the moments and forces of the propeller.
+
+Assumptions:
+- Homogeneous mass along the blade: the centroid equals the location of the cg
+- The Bebop 2 blades are simplified as two trapezoids with parallel sides connected by the long parallel side
+- The twist decreases linearly from the root to the tip
+- The airfoil is constant throughout the blade
+- The cross flow along the span of the blade is ignored
+- Aeroelasticity effects are ignored
+- The root and tip losses are ignored
+- The induced velocity is computed with the simplified linear induced inflow
+- The nonlinear effects between (damaged) blades are not considered
+- The nonlinear aerodynamic effects between propellers are not considered.
+- The nonlinear aerodynamic effects between the propellers and the body frame are not considered
+- The data used for the cl cd identification is obtained from the Matlab model that provides the propeller thrust
+- The blade is cut parallel to the edge of the propeller such that the remaining polygon is still a trapezoid
+
 
 ## Contact
 Hope you enjoy the code!! For any questions, comments or suggestions, 
