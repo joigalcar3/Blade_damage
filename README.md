@@ -105,7 +105,7 @@ Then adjust the parameters that you deem necessary in _user\_input.py_ and run _
 
 You can also run it within Google Colab. For that you only copy-paste two lines. First:
 ```shell script
-!git clone https://github.com/joigalcar3/LambdaNetworks
+!git clone https://github.com/joigalcar3/Blade_damage
 ```
 This will clone the repository. Then you can open the _user\_input.py_ file and alter the user input. Second, run:
 ```shell script
