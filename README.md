@@ -90,20 +90,20 @@ These documents explain:
 [comment]: <> (Next are the identified lift and drag curves. Using the default parameters in *user_input.py*, the lift coefficient)
 [comment]: <> (polynomial has the following form: )
 
-[comment]: <> (![record screenshot](docs/images/cl_equation.png)
+[comment]: <> (![record screenshot](docs/images/cl_equation.png))
 
 [comment]: <> (In the case of the drag coefficient polynomial, it has the following form:)
 
-[comment]: <> (![record screenshot](docs/images/cd_equation.png)
+[comment]: <> (![record screenshot](docs/images/cd_equation.png))
 
 [comment]: <> (Here is the resulting lift coefficient curve with respect to the angle of attack:)
-[comment]: <> (![record screenshot](docs/images/cl_alpha_curve.PNG)
+[comment]: <> (![record screenshot](docs/images/cl_alpha_curve.PNG))
 
 [comment]: <> (Here is the resulting drag coefficient curve with respect to the angle of attack:)
-[comment]: <> (![record screenshot](docs/images/cd_alpha_curve.PNG)
+[comment]: <> (![record screenshot](docs/images/cd_alpha_curve.PNG))
 
 [comment]: <> (### Resulting forces and moments)
 
 ## Contact
 Hope you enjoy the code!! For any questions, comments or suggestions, 
-please reach out to me at [j.i.dealvearcardenas@student.tudelft.nl](jialvear@hotmail.com).
+please reach out to me at [jialvear@hotmail.com](jialvear@hotmail.com).
