@@ -871,6 +871,8 @@ def personal_opt(func, x0, den):
     return x
 
 
+# Forces and moments computation
+#%
 def FM_time_simulation(propeller, propeller_func, propeller_func_input, mass_aero="a", more_print="", switch_plot=True):
     """
     Function to run a time-based simulation of some type of forces and moments. The type is determined by the
@@ -928,6 +930,7 @@ def FM_time_simulation(propeller, propeller_func, propeller_func_input, mass_aer
     if switch_plot:
         plot_FM(np.arange(0, total_time + dt, dt), rotation_angle_lst, F_lst, M_lst, mass_aero=mass_aero)
     return F_lst, M_lst
+
 
 # Plotters
 # %%

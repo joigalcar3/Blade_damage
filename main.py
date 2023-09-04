@@ -54,8 +54,8 @@ __status__ = "Stable"
 
 # Initialization
 n_points = int(total_time / dt + 1)
-rotation_angle = 0
-n_blade_segment = 100  # number of blade sections used in the rest of the analysis
+rotation_angle = angle_first_blade
+n_blade_segment = n_blade_segment_lst[0]  # number of blade sections used in the rest of the analysis
 propeller_func_input = {"number_sections": n_blade_segment, "omega": omega, "cla_coeffs": cla_coeffs,
                         "cda_coeffs": cda_coeffs, "body_velocity": body_velocity, "pqr": pqr, "rho": rho,
                         "attitude": attitude, "total_time": total_time, "dt": dt, "n_points": n_points,
@@ -220,9 +220,7 @@ if switch_plot_healthy_mass_aero:  # whether we want to compute the moments and 
 # ----------------------------------------------------------------------------------------------------------------------
 # Obtain the range of values for different degrees of blade damage. Figures 9.32, 9.33, 9.34 and 9.35 in thesis
 if switch_plot_mass_aero_blade_percentage:  # whether the max-min forces and moments should be plotted wrt blade damage
-    n_blade_segment = 100
-    dt = 0.01
-    percentage_broken_blade_length_lst = list(range(0, 105, 5))
+    # For the following code, it is preferred that the user selects: dt = 0.01
     F_broken_percentage_max, F_broken_percentage_min, M_broken_percentage_max, M_broken_percentage_min = \
         [np.zeros((3, len(percentage_broken_blade_length_lst))) for i in range(4)]
     broken_percentage_counter = 0

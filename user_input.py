@@ -55,6 +55,7 @@ percentage_broken_blade_length = [20, 0, 0]            # [%] percentage of broke
 angle_first_blade = 0                 # [deg] angle of the first blade with respect to the propeller coord. frame
 n_blade_segment_lst = list(np.arange(100, 150, 50))         # [-] number of sections in which a single blade is divided
 number_samples_lst = list(np.arange(16000, 17000, 1000))    # [-] number of data points for the model identification
+percentage_broken_blade_length_lst = list(np.arange(0, 105, 5))   # [-] blade damage % for switch_plot_mass_aero_blade_percentage
 degree_cla = 2                        # [-] degree of the cl alpha curve polynomial
 degree_cda = 2                        # [-] degree of the cd alpha curve polynomial
 start_cla_plot = -10                  # [deg] initial alpha value to plot of the cl and cd curves

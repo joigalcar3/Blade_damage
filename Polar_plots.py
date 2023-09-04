@@ -42,6 +42,8 @@ body_velocity = np.array([[3], [0], [-1]])  # the linear velocity of the vehicle
 pqr = np.array([[0], [0], [0]])  # the angular velocity of the vehicle
 V = np.linalg.norm(body_velocity)  # the magnitude of the linear velocity of the vehicle
 type_vi = "L"  # "N"=no vi, "U"=uniform vi, "L"=linear vi
+
+# Obtain propeller object
 propeller = Propeller(0, n_blades, chord_lengths_rt_lst, length_trapezoids_rt_lst, radius_hub, propeller_mass,
                       percentage_hub_m, angle_first_blade, start_twist, finish_twist,
                       broken_percentage=percentage_broken_blade_length, plot_chords_twist=False)
@@ -92,24 +94,17 @@ values = values.flatten()
 data = griddata(points, values, (grid_r, grid_theta), method='cubic', fill_value=0)
 
 # Create a polar projection of the induced velocity distribution along the propeller area
-fig = plt.figure(125)
+fig = plt.figure(1)
 ax = plt.subplot(projection="polar")
 ax.set_rticks([])
-# ax.set_xticks([])
 im = ax.pcolormesh(psi_lst, r_lst, data.T)
-# fig.colorbar(im, orientation='vertical', label="$v_i$ [m/s]")
-fig.colorbar(im, orientation='vertical', label="$v_i$, m/s", pad=0.065)
+fig.colorbar(im, orientation='vertical', label="$v_i$, [m/s]", pad=0.065)
 plt.plot(psi_lst, grid_r, color='k', ls='none')
-# ax.annotate('$\overrightarrow{V}^P_{xy}$', xy=(-0.4, 0.52), xycoords='axes fraction', xytext=(-0.9, 0.488),
-#             arrowprops=dict(arrowstyle="<|-", color='#1f77b4', lw=4))
 ax.annotate('$\overrightarrow{V}^P_{xy}$', xy=(-0.6, 0.52), xycoords='axes fraction', xytext=(-1.03, 0.465),
             arrowprops=dict(arrowstyle="<|-", color='#1f77b4', lw=4))
-# ax.annotate('$\\psi=180^\circ$', xy=(-0.35, 0.48), xycoords='axes fraction')
 ax.annotate('$\\psi=180^\circ$', xy=(-0.56, 0.48), xycoords='axes fraction')
 ax.annotate('$0^\circ$', xy=(1.01, 0.48), xycoords='axes fraction')
-# ax.annotate('$90^\circ$', xy=(0.45, 1.02), xycoords='axes fraction')
 ax.annotate('$90^\circ$', xy=(0.42, 1.02), xycoords='axes fraction')
-# ax.annotate('$270^\circ$', xy=(0.42, -0.08), xycoords='axes fraction')
 ax.annotate('$270^\circ$', xy=(0.38, -0.12), xycoords='axes fraction')
 plt.grid(True)
 thetagrids((0, 90, 180, 270), labels=("", "", "", ""))
@@ -159,26 +154,19 @@ values = values.flatten()
 data = griddata(points, values, (grid_r, grid_theta), method='cubic', fill_value=0)
 
 # Create a polar projection of the angle of attack over the propeller surface
-fig = plt.figure(126)
+fig = plt.figure(2)
 ax = plt.subplot(projection="polar")
 ax.set_rticks([])
 im = ax.pcolormesh(psi_lst, r_lst, data.T, vmin=np.radians(-10), vmax=np.radians(10))
 # im = ax.pcolormesh(psi_lst, r_lst, data.T, vmin=np.radians(-15), vmax=np.radians(25))  # uncomment for fig 34.c)
-# fig.colorbar(im, orientation='vertical', label="$\\alpha$ [rad]")
-# fig.colorbar(im, orientation='vertical', label="$\\alpha$, rad")
-cbar = fig.colorbar(im, orientation='vertical', label="$\\alpha$, rad", pad=0.065)
+cbar = fig.colorbar(im, orientation='vertical', label="$\\alpha$, [rad]", pad=0.065)
 cbar.formatter.set_powerlimits((0, 0))
 plt.plot(psi_lst, grid_r, color='k', ls='none')
-# ax.annotate('$\overrightarrow{V}^P_{xy}$', xy=(-0.4, 0.52), xycoords='axes fraction', xytext=(-0.9, 0.488),
-            # arrowprops=dict(arrowstyle="<|-", color='#1f77b4', lw=4))
 ax.annotate('$\overrightarrow{V}^P_{xy}$', xy=(-0.6, 0.52), xycoords='axes fraction', xytext=(-0.98, 0.465),
             arrowprops=dict(arrowstyle="<|-", color='#1f77b4', lw=4))
-# ax.annotate('$\\psi=180^\circ$', xy=(-0.35, 0.48), xycoords='axes fraction')
 ax.annotate('$\\psi=180^\circ$', xy=(-0.56, 0.48), xycoords='axes fraction')
 ax.annotate('$0^\circ$', xy=(1.01, 0.48), xycoords='axes fraction')
-# ax.annotate('$90^\circ$', xy=(0.45, 1.02), xycoords='axes fraction')
 ax.annotate('$90^\circ$', xy=(0.42, 1.02), xycoords='axes fraction')
-# ax.annotate('$270^\circ$', xy=(0.42, -0.08), xycoords='axes fraction')
 ax.annotate('$270^\circ$', xy=(0.38, -0.12), xycoords='axes fraction')
 plt.grid(True)
 thetagrids((0, 90, 180, 270), labels=("", "", "", ""))
