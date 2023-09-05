@@ -63,8 +63,7 @@ propeller_func_input = {"number_sections": n_blade_segment, "omega": omega, "cla
 
 # Create the propeller and the blades
 propeller = Propeller(propeller_number, n_blades, chord_lengths_rt_lst, length_trapezoids_rt_lst, radius_hub,
-                      propeller_mass,
-                      percentage_hub_m, angle_first_blade, start_twist, finish_twist,
+                      propeller_mass, percentage_hub_m, angle_first_blade, start_twist, finish_twist,
                       broken_percentage=percentage_broken_blade_length, plot_chords_twist=switch_chords_twist_plotting)
 propeller.create_blades()
 
@@ -154,6 +153,7 @@ if coefficients_identification:  # Whether we want to cl-alpha curve polynomial 
                             f'va_{min_method}_{file_name_suffix}__coeffs_storage.npy'
             with open(data_filename, 'wb') as f:
                 np.save(f, coeffs_grid)
+
     # Plot the lift and drag coefficients with respect to the range of number of samples and number of blade sections.
     # This type of plots are shown in Appendix D of the thesis.
     if switch_coeffs_grid_plot:  # whether grid figures should be plotted

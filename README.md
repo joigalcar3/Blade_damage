@@ -115,9 +115,9 @@ This will clone the repository. Then you can open the _user\_input.py_ file and 
 ## Implementation, results and conclusions
 The results of this work can be found in the author's Master thesis and paper:
 
-- Master thesis: "From Data to Prediction: Vision-Based UAV Fault Detection and Diagnosis". Chapters 9.1-9.3, 
+1. Master thesis: "From Data to Prediction: Vision-Based UAV Fault Detection and Diagnosis". Chapters 9.1-9.3, 
 Appendices A-D.
-- Paper: "Blade Element Theory Model for UAV Blade Damage Simulation". Everything except "VII. Model Validation."
+2. Paper: "Blade Element Theory Model for UAV Blade Damage Simulation". Everything except "VII. Model Validation."
 
 These documents explain:
 * Force and moment contribution of the mass effects
