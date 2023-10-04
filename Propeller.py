@@ -104,6 +104,7 @@ class Propeller:
     def reset_propeller(self, broken_percentage):
         """
         Method to reset the propeller to the default values and change its broken degree.
+        :param broken_percentage: the percentage of the blade that is broken
         :return: None
         """
         self.broken_percentage = broken_percentage
