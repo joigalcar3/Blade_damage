@@ -39,13 +39,15 @@ class Blade:
                  broken_percentage=0, plot_chords_twist=False):
         """
         Function that computes a blade area and the location of its cg
-        :param broken_percentage: percentage of the blade that is broken from the tip
-        :param damaged: whether the blade is damaged
         :param chords: the base and tip chords of all the trapezoids
         :param hs: the height of all the trapezoids
+        :param start_twist: the twist angle at the root
+        :param final_twist: the twist angle at the tip
         :param radius_hub: radius of the middle propeller hub
         :param rotation_direction: direction of rotation of the propeller (CW or CCW)
         :param initial_angle: initial angle of the blade with respect to the propeller at the start of the computations
+        :param broken_percentage: percentage of the blade that is broken from the tip
+        :param plot_chords_twist: whether the twist and the chord along the blade should be plotted
         :return: the total area and the location of the blade cg
         """
         self.healthy_chords = chords

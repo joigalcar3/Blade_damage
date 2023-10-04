@@ -36,7 +36,7 @@ class BladeSection:
         :param initial_chord: the chord at the root of the blade section
         :param final_chord: the chord at the tip of the blade section
         :param radius_hub: the radius of the middle propeller hub
-        :param rotation_direction: the direction of rotation of the propelelr
+        :param rotation_direction: the direction of rotation of the propeller
         :param air_density: the density of the air
         :return: None
         """
@@ -107,7 +107,7 @@ class BladeSection:
         is necessary in order to understand how much of the air velocity is perpendicular to the blade [rad]
         :param cla_coeffs: list of coefficients used for the computation of the cl given the angle of attack
         :param cda_coeffs: list of coefficients used for the computation of the cd given the angle of attack
-        :param inflow_data:data regarding the inflow field, namely the uniform induced inflow field, induced inflow
+        :param inflow_data: data regarding the inflow field, namely the uniform induced inflow field, induced inflow
         velocity and a lambda function that computes the linear induced field depending on the blade element distance
         from the hub and angle with respect to the inflow.
         :return: blade section torque and forces in the x-y body plane
