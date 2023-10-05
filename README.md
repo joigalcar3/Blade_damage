@@ -71,7 +71,7 @@ Blade. Additionally, it computes the contribution for the identification of the 
 single blade.
 
 * *BladeSection.py*: Provides the BladeSection, class for the aerodynamic model identification and computation of forces and moments.
-BladeSection holds all the information related to a single blade element according to BEM theory. It is used for the
+BladeSection holds all the information related to a single blade element according to BET theory. It is used for the
 computation of the angle of attack and velocity seen by each BladeSection. Additionally, it computes the contribution
 of the BladeSection lift and drag to the thrust force and torque.
 
