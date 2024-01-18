@@ -167,8 +167,9 @@ Hope you enjoy the code!! For any questions, comments or suggestions,
 please reach out to me at [jose.dealvearcardenas@sjsu.edu](jose.dealvearcardenas@sjsu.edu). Also, please consider citing 
 our research work below when using this repository.
 
+
     @inbook{deAlvearCardenasBET2024,
-        author = {José Ignacio de Alvear Cárdenas  and Coen C. de Visser},
+        author = {José Ignacio de Alvear Cárdenas and Coen C. de Visser},
         title = {Blade Element Theory Model for UAV Blade Damage Simulation},
         booktitle = {AIAA SCITECH 2024 Forum},
         chapter = {},
