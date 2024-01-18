@@ -164,12 +164,15 @@ Assumptions:
 
 ## Contact
 Hope you enjoy the code!! For any questions, comments or suggestions, 
-please reach out to me at [jose.dealvearcardenas@sjsu.edu](jose.dealvearcardenas@sjsu.edu). Also, please consider citing our research work below when using this repository (the paper will be published in January 2024 and the BibTex reference will be updated around the 1st February 2024, including the DOI).
+please reach out to me at [jose.dealvearcardenas@sjsu.edu](jose.dealvearcardenas@sjsu.edu). Also, please consider citing 
+our research work below when using this repository.
 
-
-    @inproceedings{dealvear2024BET,
-      title={Blade Element Theory Model for UAV Blade Damage Simulation},
-      author={de Alvear Cárdenas, J.I. and de Visser, C.},
-      booktitle={AIAA Scitech 2024 Forum},
-      year={2024}
+    @inbook{deAlvearCardenasBET2024,
+        author = {José Ignacio de Alvear Cárdenas  and Coen C. de Visser},
+        title = {Blade Element Theory Model for UAV Blade Damage Simulation},
+        booktitle = {AIAA SCITECH 2024 Forum},
+        chapter = {},
+        pages = {},
+        doi = {10.2514/6.2024-2816},
+        URL = {https://arc.aiaa.org/doi/abs/10.2514/6.2024-2816}
     }
